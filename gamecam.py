@@ -1,3 +1,8 @@
+
+if __name__ == "__main__":
+    print(True)
+
+'''
 import os
 import sys
 import math
@@ -57,15 +62,11 @@ def td_minutes(td):
     return round(td.days * 1440 + td.seconds / 60, 2)
 
 
-''' Empty class used for variables modified at local scopes,
-but accessed elsewhere.
-'''
 class Mem():
     def __init__(self):
         pass
 
 
-# Class Cam is the meat of this code. Far too bulky, needs to be broken up.
 class Cam():
     def __init__(self):
         root = tk.Tk()
@@ -84,9 +85,6 @@ class Cam():
         self.smooth = 1
         self.night = 0
 
-    ''' The "whole shabang." Load if possible, otherwise process,
-    then plot and save.
-    '''
     def shabang(self):
         print('INITIALIZED')
         if self.load() is not None:
@@ -100,7 +98,6 @@ class Cam():
         print('FINISHED')
         print(f" ∙ There should be {sum(self.bools)} images exported.")
 
-    # Populate Cam object with dates, times, names, paths, dts, etc.
     def process(self):
         self.datetimes, self.names, self.paths = self.get_EXIF()
         print(" ∙ EXIF read.")
@@ -117,7 +114,6 @@ class Cam():
         self.new_counts = self.get_new_counts()
         self.save()
 
-    # Save selected images in folder.
     def finish(self):
         self.save()
         self.bools = self.get_events()
@@ -139,9 +135,6 @@ class Cam():
                                f"{dt_ISO(self.datetimes[i])}_"
                                f"{self.names[i]}")))
 
-    ''' Save data read from EXIF, plot settings, and selected images
-    as JSON objects.
-    '''
     def save(self):
         saves = os.path.join(self.ROOT_PATH, '.saves')
         if not os.path.exists(saves):
@@ -163,7 +156,6 @@ class Cam():
         with open(os.path.join(saves, 'bumps.dat'), 'w') as f:
             f.write(json.dumps(mem.bumps))
 
-    # Load saved JSON objects.
     def load(self):
         saves = os.path.join(self.ROOT_PATH, '.saves')
         if os.path.exists(saves):
@@ -202,7 +194,6 @@ class Cam():
         else:
             return None
 
-    # Read EXIF data from JPGs, take datetime.
     def get_EXIF(self):
         output = []
 
@@ -225,13 +216,11 @@ class Cam():
 
         return list(zip(*sorted(output)))
 
-    # Find timedeltas in between successive images.
     def get_deltas(self):
         return [self.datetimes[i] - self.datetimes[i-1] if
                 i > 0 else td(0) for
                 i in range(len(self.datetimes))]
 
-    # Process images using frame differencing techniques.
     def get_counts(self):
         approx = dt.now() + td(seconds=len(self.names) / 12)
         print(" ∙ Image processing started, come back at "
@@ -271,9 +260,6 @@ class Cam():
 
         return output_counts, output_medians
 
-    ''' Modify counts to eliminate day to night transitions,
-    multiply up values occuring at night.
-    '''
     def get_new_counts(self):
         output = []
 
@@ -296,9 +282,6 @@ class Cam():
 
         return output
 
-    ''' Creates events (images above threshold, and their neighbors
-    consecutive in time) and trims them.
-    '''
     def get_events(self):
         output = [False] * len(self.new_counts)
         len_output = len(output)
@@ -333,7 +316,6 @@ class Cam():
 
         return output
 
-    # Labels events with a "run" number, which is an unbroken streak.
     def get_runs(self):
         output = [0] * len(self.bools)
 
@@ -350,9 +332,6 @@ class Cam():
 
         return output
 
-    ''' Meaty interactive plot whereby a user sees plotted response values
-    and can modify and edit the selection.
-    '''
     def plot(self):
         def update():
             mem.red.remove()
@@ -566,3 +545,4 @@ mem.switch = False
 
 cam = Cam()
 cam.shabang()
+'''
