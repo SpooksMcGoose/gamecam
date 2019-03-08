@@ -1,2 +1,3 @@
 # gamecam
-Python program to easily filter out camera-trap images with no changes between them.
+
+Filters out images that don't contain an animal.
