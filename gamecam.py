@@ -1,6 +1,191 @@
+import os
+from datetime import datetime as dt, timedelta as td
+import exifread as er
+import cv2
+
+
+############################################################
+#####                GENERAL  FUNCTIONS                #####
+############################################################
+
+
+# Binary search function.
+def bin_search(array, x):
+    lo, hi = 0, len(array) - 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if array[mid] < x:
+            lo = mid + 1
+        elif x < array[mid]:
+            hi = mid - 1
+        else:
+            return True
+    return False
+
+
+# Consumes a generator to a list of the first N elements.
+def first_n_elems(generator, n):
+    output = []
+    for _ in range(n):
+        output.append(next(generator))
+    return output
+        
+
+
+############################################################
+#####               SPECIFIC   FUNCTIONS               #####
+############################################################
+
+
+# Recursive walk finding all JPG images below home_path.
+def find_jpgs(home_path):
+    for dir_, subdir, files in os.walk(home_path):
+        if '_selected' not in dir_:
+            found = (
+                f for f in files
+                if f.upper().endswith(('.JPG', '.JPEG'))
+            )
+            for filename in found:                
+                filepath = os.path.join(dir_, filename)
+
+                yield {'filename': filename,
+                       'filepath': filepath}
+
+
+# Default parser for the EXIF "Image DateTime" tag.
+def parse_dt(raw):
+    return dt.strptime(str(raw), "%Y:%m:%d %H:%M:%S")
+
+
+# Takes in filepaths, reads binary files, attaches EXIF data.
+# Can create custom tuples in tag_format to extract more data.
+def attach_exif(jpg_data, tag_format=[
+    ("Image DateTime", 'datetime', parse_dt)
+    ]):
+
+    for row in jpg_data:
+        file = open(row['filepath'], "rb")
+        tags = er.process_file(file, details = False)
+
+        for t, var, anon in tag_format:
+            row[var] = anon(tags[t])
+
+        yield row
+
+
+# Quickly finds the median tone of a grayscale image.
+def hist_median(image, px_count):
+    hist = cv2.calcHist([image], [0], None, [256], [0,256])
+
+    tally = 0
+    threshold = px_count / 2
+    for i, count in enumerate(hist):
+        tally += count
+        if tally > threshold:
+            return i
+
+
+# Takes single image. Crops / clones out timestamp, equalizes histogram.
+# Importan pre-processing step for the process_jpgs function.
+def process_img(image, crop):
+    w, h = image.shape
+
+    image = image[crop[0]:h-crop[1], crop[2]:w-crop[3]]
+    
+    # ??? clone stamping
+    # cropped[882:979, :203] = cropped[785:882, :203]
+
+    return cv2.equalizeHist(image)
+
+
+# Minimum input requires data with filepaths. Method combines frame-
+# differencing, thresholding, and summation of contours to output response.
+def process_jpgs(jpg_data, crop=(0,0,0,0)):
+    for i, row in enumerate(jpg_data):
+        if i == 0:
+            prev = process_img(cv2.imread(row['filepath'], 0), crop)
+            w, h = prev.shape
+            px_count = w * h
+
+        path = row['filepath']
+        
+        jpg = cv2.imread(path, 0)
+        row['median'] = hist_median(jpg, px_count)
+        curr = process_img(jpg, crop)
+
+        difference = cv2.absdiff(curr, prev)
+        blurred = cv2.medianBlur(difference, 11)
+
+        _, mask = cv2.threshold(blurred,
+                                row['median']*1.05, 255,
+                                cv2.THRESH_BINARY)
+
+        _, contours, _ = cv2.findContours(
+            mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+            )
+
+        count = 0
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area > 100:
+                count += area
+        row['count'] = count
+
+        prev = curr.copy()
+        yield row
+
+
+# Minimum input requires process_jpg data. Object essentially holds
+# data used in exporting, parameters for graphing, and plot function.
+class Cam():
+    def __init__(self, jpg_data=False, load=False):
+        # ???
+        if load:
+            pass
+        elif jpg_data:
+            self.jpg_data = jpg_data
+
+            self.plot_params = {
+                "event_thresh": 20000,
+                "mean_diff": 1,
+                "smooth": 1,
+                "night": 0
+            }
+
 
 if __name__ == "__main__":
-    print(True)
+    import time
+
+    home_path = '/Users/user/Data/python/wardle/2AL (35)'
+
+    first = time.time()
+
+    st = time.time()
+    jpg_paths = find_jpgs(home_path)
+    end = time.time()
+    print(f"A\t{end - st}")
+
+    st = time.time()
+    jpg_data = attach_exif(jpg_paths)
+    end = time.time()
+    print(f"B\t{end - st}")
+
+    n = 100
+    st = time.time()
+    processed_data = first_n_elems(process_jpgs(jpg_data), n)
+    end = time.time()
+    print(f"C\t{end - st}\t{n / (end - st)}")
+
+    st = time.time()
+    cam = Cam(processed_data)
+    end = time.time()
+    print(f"D\t{end - st}")
+    print(cam.jpg_data[0])
+
+    last = time.time()
+    print(f"END\t{last - first}")
+
+
 
 '''
 import os
