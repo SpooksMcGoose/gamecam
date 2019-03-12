@@ -1,4 +1,6 @@
 __pycache__
+build
+dist
 test.py
 .DS_Store
 gamecam.egg-info
