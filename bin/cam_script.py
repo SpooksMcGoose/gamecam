@@ -1,6 +1,8 @@
 from gamecam import *
+import sys
 
-home_path = '/Users/user/Data/python/wardle/2AL (35)'
+cwd = sys.path[0]
+home_path = cwd[:cwd.rfind('/')] + '/data/images'
 
 st = time.time()
 jpg_paths = find_jpgs(home_path)
@@ -36,9 +38,22 @@ print(f"E\t{end - st}")
 #print(cam.jpg_data[0])
 
 cam.plot()
+
+st = time.time()
 cam.save()
+end = time.time()
+print(f"F\t{end - st}")
 
 wam = Cam()
+
+st = time.time()
 wam.load()
+end = time.time()
+print(f"G\t{end - st}")
+
 wam.plot()
+
+st = time.time()
 wam.export()
+end = time.time()
+print(f"H\t{end - st}")

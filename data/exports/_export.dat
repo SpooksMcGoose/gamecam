@@ -1,0 +1,10 @@
+count	datetime	filename	filepath	from_midnight	med_diff	median	new_count	selected	td_minutes	timedelta
+104.0	2018-05-04 21:26:14	05040103.JPG	/Users/user/code/packaging/gamecam/data/images/05040103.JPG	2.5627777777777787	0	30	104.0	True	0.02	0:00:01
+30271.5	2018-05-05 02:43:35	05050104.JPG	/Users/user/code/packaging/gamecam/data/images/05050104.JPG	2.726388888888889	0	30	30271.5	True	317.35	5:17:21
+11475.0	2018-05-05 02:43:36	05050105.JPG	/Users/user/code/packaging/gamecam/data/images/05050105.JPG	2.7266666666666666	0	30	11475.0	True	0.02	0:00:01
+54966.0	2018-05-05 02:43:38	05050106.JPG	/Users/user/code/packaging/gamecam/data/images/05050106.JPG	2.727222222222222	1	29	54966.0	True	0.03	0:00:02
+17241.0	2018-05-05 02:43:39	05050107.JPG	/Users/user/code/packaging/gamecam/data/images/05050107.JPG	2.7275	0	29	17241.0	True	0.02	0:00:01
+11904.0	2018-05-05 02:43:41	05050108.JPG	/Users/user/code/packaging/gamecam/data/images/05050108.JPG	2.7280555555555557	0	29	11904.0	True	0.03	0:00:02
+11961.5	2018-05-05 02:43:42	05050109.JPG	/Users/user/code/packaging/gamecam/data/images/05050109.JPG	2.7283333333333335	0	29	11961.5	True	0.02	0:00:01
+16757.0	2018-05-05 02:43:45	05050111.JPG	/Users/user/code/packaging/gamecam/data/images/05050111.JPG	2.729166666666667	1	30	16757.0	True	0.05	0:00:03
+16760.0	2018-05-05 02:43:45	05050110.JPG	/Users/user/code/packaging/gamecam/data/images/05050110.JPG	2.729166666666667	0	30	16760.0	True	0.0	0:00:00

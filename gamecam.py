@@ -55,25 +55,28 @@ def extract_var(data, var):
     return [x[var] for x in data]
 
 
-def handle_tkinter(mode):
+def handle_tkinter(mode, init=None):
     root = tk.Tk()
     root.withdraw()
 
+    if init is None:
+        init = os.path.expanduser("~")
+
     if mode == 'savefile':
         output = filedialog.asksaveasfilename(
-            initialdir = os.path.expanduser("~"),
+            initialdir = init,
             title = "Select file",
             filetypes = (("Save files","*.sav"),("All files","*.*"))
         )
     elif mode == 'openfile':
         output = filedialog.askopenfilename(
-            initialdir = os.path.expanduser("~"),
+            initialdir = init,
             title = "Select file",
             filetypes = (("Save files","*.sav"),("All files","*.*"))
         )
     elif mode == 'opendir':
         output = filedialog.askdirectory(
-            initialdir = os.path.expanduser("~"),
+            initialdir = init,
             title = "Select folder",
         )
 
@@ -237,6 +240,8 @@ class Cam():
 
         self.buffer = [[None] * 64, [None] * 64]
 
+        self.recent_folder = os.path.expanduser("~")
+
         if jpg_data:
             self.jpg_data = list(jpg_data)
             self.length = len(self.jpg_data)
@@ -255,8 +260,15 @@ class Cam():
                 )
                 row['med_diff'] = abs(row['med_diff'])
 
+    def update_recent_folder(self, path):
+        if os.path.isfile(path):
+            self.recent_folder = os.path.dirname(path)
+        else:
+            self.recent_folder = path
+
     def save(self):
-        filename = handle_tkinter('savefile')
+        filename = handle_tkinter('savefile', self.recent_folder)
+        self.update_recent_folder(filename)
         if filename:
             temp_data = [
                 {k: v for k, v in row.items()}
@@ -280,7 +292,8 @@ class Cam():
             print("Please provide a filename to save.")
 
     def load(self):
-        filename = handle_tkinter('openfile')
+        filename = handle_tkinter('openfile', self.recent_folder)
+        self.update_recent_folder(filename)
         if filename:
             with open(filename, 'r') as f:
                 self.plot_params = json.loads(next(f))
@@ -304,7 +317,8 @@ class Cam():
             print("Please provide a filepath to load.")
 
     def export(self):
-        directory = handle_tkinter('opendir')
+        directory = handle_tkinter('opendir', self.recent_folder)
+        self.update_recent_folder(directory)
         if directory:
             write_data = []
 
@@ -316,15 +330,17 @@ class Cam():
                         directory, '_'.join((dt_ISO, row['filename']))
                     )
                     shutil.copy2(row['filepath'], new_path)
-
-            with open(os.path.join(directory, '_export.dat'), 'w') as f:
-                variables = sorted(write_data[0].keys())
-                for i, row in enumerate(write_data):
-                    if i != 0:
-                        f.write('\n')
-                    else:
-                        f.write('\t'.join(variables) + '\n')
-                    f.write('\t'.join(str(row[v]) for v in variables))
+            if write_data:
+                with open(os.path.join(directory, '_export.dat'), 'w') as f:
+                    variables = sorted(write_data[0].keys())
+                    for i, row in enumerate(write_data):
+                        if i != 0:
+                            f.write('\n')
+                        else:
+                            f.write('\t'.join(variables) + '\n')
+                        f.write('\t'.join(str(row[v]) for v in variables))
+            else:
+                print("No images selected for export.")
         else:
             print("Please provide an export directory.")
 
@@ -334,7 +350,6 @@ class Cam():
             curr = row[var]
             row[new_var] = curr - prev
             prev = curr
-
 
     def update_counts(self):
         for i, row in enumerate(self.jpg_data):
