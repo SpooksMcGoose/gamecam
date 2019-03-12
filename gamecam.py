@@ -1,9 +1,14 @@
-import os
-import json
-import time
 import datetime
+import json
+import os
+import shutil
+import time
+
+import cv2
+import exifread as er
+import numpy as np
+
 from datetime import datetime as dt, timedelta as td
-from operator import itemgetter
 
 try:
     import tkinter as tk
@@ -11,7 +16,8 @@ try:
 except ImportError:
     import Tkinter as tk
     from Tkinter import filedialog
-# Get around a weird tkinter / matplotlib interaction.
+
+# Work-around a weird tkinter / matplotlib interaction.
 # Note: I would use TkAgg like below, but causes key bouncing.
 root = tk.Tk()
 root.withdraw()
@@ -20,12 +26,6 @@ root.withdraw()
 # matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Slider
-
-import exifread as er
-import numpy as np
-
-import cv2
-import shutil
 
 
 ############################################################
@@ -46,14 +46,6 @@ DIRECTION_MULTS = {
 ############################################################
 
 
-# Consumes a generator to a list of the first N elements.
-def first_n_elems(generator, n):
-    output = []
-    for _ in range(n):
-        output.append(next(generator))
-    return output
-
-
 def to_24_hour(datetime):
     time = datetime.time()
     return time.hour + time.minute / 60 + time.second / 3600
@@ -61,11 +53,6 @@ def to_24_hour(datetime):
 
 def extract_var(data, var):
     return [x[var] for x in data]
-
-
-def most_recent(path):
-    files = sorted(f for f in os.listdir(path) if f.endswith('.dat'))
-    return os.path.join(path, files[-1])
 
 
 def handle_tkinter(mode):
@@ -351,15 +338,15 @@ class Cam():
 
     def update_counts(self):
         for i, row in enumerate(self.jpg_data):
-            count = row["count"]
+            new_count = row["count"]
             if row["med_diff"] > self.plot_params["trans_thresh"]:
-                count = -1
-            count *= 1 + (
+                new_count = 0
+            new_count *= 1 + (
                 self.plot_params['night_mult']
                 / (1 + 150**(row['from_midnight']-4.5))
             )
 
-            row["new_count"] = count
+            row["new_count"] = new_count
 
         for i, shift in self.user_edits.items():
             self.jpg_data[i]["new_count"] = shift
@@ -477,8 +464,8 @@ class Cam():
             pano = np.hstack(stack)
             h, w, *_ = pano.shape
 
-            cv2.namedWindow("Main", cv2.WINDOW_NORMAL)
-            cv2.imshow("Main", cv2.resize(pano, (w // 2, h // 2)))
+            cv2.namedWindow("Gallery", cv2.WINDOW_NORMAL)
+            cv2.imshow("Gallery", cv2.resize(pano, (w // 2, h // 2)))
 
         def on_click(event):
             if event.dblclick and event.xdata is not None:
@@ -563,7 +550,6 @@ class Cam():
 
         cv2.destroyAllWindows()
 
-
 if __name__ == "__main__":
     home_path = '/Users/user/Data/python/wardle/2AL (35)'
 
@@ -574,14 +560,14 @@ if __name__ == "__main__":
     #print(jpg_paths[0])
 
     st = time.time()
-    jpg_data = sorted(attach_exif(jpg_paths), key=itemgetter('datetime'))
+    jpg_data = sorted(attach_exif(jpg_paths), key=lambda x: x['datetime'])
     end = time.time()
     print(f"B\t{end - st}")
     #print(jpg_data[0])
 
     st = time.time()
     params = generate_clone_params((882,979,0,203), "right")
-    processed_data = process_jpgs(jpg_data[:20],
+    processed_data = process_jpgs(jpg_data,
                                   crop=(0,100,0,0),
                                   clone_params=params)
     end = time.time()
