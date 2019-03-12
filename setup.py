@@ -4,12 +4,12 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 setuptools.setup(
-    name="gamecam",
+    name="gamecam-sdrabing",
     version="0.1.0",
     author="Shane Drabing",
     author_email="shane.drabing@gmail.com",
-    packages=['test'],
-    scripts=['bin/cam_script.py'],
+    packages=['gamecam', 'gamecam.test'],
+    scripts=['scripts/basic_script.py', 'scripts/timed_script.py'],
     url="https://github.com/SpooksMcGoose/gamecam",
     description="Filters out images that don't contain an animal.",
     long_description=long_description,
