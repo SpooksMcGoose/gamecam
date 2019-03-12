@@ -5,13 +5,13 @@ with open("README.md", "r") as f:
 
 setuptools.setup(
     name="gamecam-sdrabing",
-    version="0.1.0",
+    version="0.2.0",
     author="Shane Drabing",
     author_email="shane.drabing@gmail.com",
-    packages=['gamecam', 'gamecam.test'],
-    scripts=['scripts/basic_script.py', 'scripts/timed_script.py'],
+    packages=['pyrcolate', 'pyrcolate.test', 'classipy', 'classipy.test'],
+    scripts=['scripts/sandbox.py', 'scripts/pyrcolate_script.py'],
     url="https://github.com/SpooksMcGoose/gamecam",
-    description="Filters out images that don't contain an animal.",
+    description="Camera-trapping software suite.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     classifiers=[

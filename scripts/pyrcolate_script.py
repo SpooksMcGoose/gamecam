@@ -17,8 +17,6 @@ processed_data = process_jpgs(
 
 cam = Cam(processed_data)
 
-cam.update_counts()
-
 cam.plot()
 
 cam.save()
