@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import shutil
+import sys
 import time
 
 import cv2
@@ -18,13 +19,10 @@ except ImportError:
     from Tkinter import filedialog
 
 # Work-around a weird tkinter / matplotlib interaction.
-# Note: I would use TkAgg like below, but causes key bouncing.
+# Note: I would use TkAgg backend, but key bouncing breaks the plot.
 root = tk.Tk()
 root.withdraw()
-root.destroy()
 
-# import matplotlib
-# matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Slider
 
@@ -50,7 +48,6 @@ def to_24_hour(datetime):
 
 def extract_var(data, var):
     return [x[var] for x in data]
-
 
 # Tkinter works strangely inside of a class, so I moved it out here.
 def handle_tkinter(mode, init=None):
@@ -331,7 +328,7 @@ def process_jpgs(
 
 def force_process_jpgs(
     jpg_data,
-    METHOD=CONTOURS,
+    method=CONTOURS,
     CROP=False, CLONE_TUPS=False,
     THRESH=False, KSIZE=11, MIN_AREA=100
 ):
@@ -699,6 +696,7 @@ class Cam():
             except TypeError:
                 pass
 
+
         plt.rc('font', **{'size': 8})
         plt.rcParams['keymap.back'] = 'left, backspace'
 
@@ -745,19 +743,19 @@ class Cam():
 
 if __name__ == "__main__":
     print("1) Please navigate to folder with camera-trapping images.")
-    jpg_paths = find_jpgs()
+    jpg_paths = find_jpgs('/Users/user/Desktop/images')
 
     jpg_data = attach_exif(jpg_paths)
     jpg_data.sort(key=lambda x: x['datetime'])
 
     print("2) Images are being processed.")
-    processed_data = process_jpgs(jpg_data)
+    processed_data = process_jpgs(jpg_data, METHOD=SIMPLE)
 
     if type(processed_data) is not tuple:
         cam = Cam(processed_data)
 
         print("3) Please choose a location for an initial save.")
-        cam.save()
+        #cam.save()
 
         print("4) Use the interactive plot to select images for export.")
         print('\n'.join((

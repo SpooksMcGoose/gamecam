@@ -4,11 +4,11 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 setuptools.setup(
-    name="gamecam-sdrabing",
-    version="0.2.0",
+    name="gamecam-SDrabing",
+    version="0.2.1",
     author="Shane Drabing",
     author_email="shane.drabing@gmail.com",
-    packages=['pyrcolate', 'pyrcolate.test', 'classipy', 'classipy.test'],
+    packages=setuptools.find_packages(),
     scripts=['scripts/sandbox.py', 'scripts/pyrcolate_script.py'],
     url="https://github.com/SpooksMcGoose/gamecam",
     description="Camera-trapping software suite.",
