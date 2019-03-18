@@ -30,12 +30,21 @@ from matplotlib.widgets import Slider
 ''' CONSTANTS '''
 
 
+# Default parser for the EXIF "Image DateTime" tag.
+def PARSE_DT(raw):
+    return dt.strptime(str(raw), "%Y:%m:%d %H:%M:%S")
+
+
+DEFAULT_PARSE = [("Image DateTime", 'datetime', PARSE_DT)]
+
 DIRECTION_MULTS = {
     "A": (-1, -1, 0, 0),
     "B": (1, 1, 0, 0),
     "R": (0, 0, 1, 1),
     "L": (0, 0, -1, -1)
 }
+
+DEFAULT_SORT = lambda x: x['datetime']
 
 
 ''' GENERAL FUNCTIONS '''
@@ -117,19 +126,13 @@ def find_jpgs(dirpath=None):
 
         return output
     else:
-        print("Please provide an image directory.")
-
-
-# Default parser for the EXIF "Image DateTime" tag.
-def parse_dt(raw):
-    return dt.strptime(str(raw), "%Y:%m:%d %H:%M:%S")
+        print("NO IMAGE DIRECTORY SPECIFIED!")
+        return []
 
 
 # Takes in filepaths, reads binary files, attaches EXIF data.
 # Can create custom tuples in tag_format to extract more data.
-def attach_exif(jpg_data, tag_format=[
-    ("Image DateTime", 'datetime', parse_dt)
-]):
+def attach_exif(jpg_data, parse_tags=DEFAULT_PARSE):
     output = []
 
     for deep_row in jpg_data:
@@ -137,7 +140,7 @@ def attach_exif(jpg_data, tag_format=[
         file = open(row['filepath'], "rb")
         tags = er.process_file(file, details=False)
 
-        for t, var, anon in tag_format:
+        for t, var, anon in parse_tags:
             row[var] = anon(tags[t])
 
         output.append(row)
@@ -174,22 +177,22 @@ def generate_clone_tuples(clone_to, clone_from):
 ''' IMAGE PREPROCESSING '''
 
 
-def CROPPER(image, CROP):
-    y1, y2, x1, x2 = CROP
+def CROPPER(image, crop):
+    y1, y2, x1, x2 = crop
     return image[y1:y2, x1:x2]
 
 
 # Crop image, equalize histogram.
-def CROP_EQUALIZE(image, CROP, CLONE_TUPS=None):
-    image = CROPPER(image, CROP)
+def CROP_EQUALIZE(image, crop, clone=None):
+    image = CROPPER(image, crop)
     return cv2.equalizeHist(image)
 
 
 # Crops, clone out timestamp, equalize.
-def CROP_CLONE_EQUALIZE(image, CROP, CLONE_TUPS):
-    image = CROPPER(image, CROP)
+def CROP_CLONE_EQUALIZE(image, crop, clone):
+    image = CROPPER(image, crop)
 
-    (a, b, c, d), (e, f, g, h) = CLONE_TUPS
+    (a, b, c, d), (e, f, g, h) = clone
     image[a:b, c:d] = image[e:f, g:h]
 
     return cv2.equalizeHist(image)
@@ -199,36 +202,36 @@ def CROP_CLONE_EQUALIZE(image, CROP, CLONE_TUPS):
 
 
 # Bare-bones. Take difference, threshold, and sum the mask.
-def SIMPLE(curr, prev, THRESH, KSIZE=None, MIN_AREA=None):
+def SIMPLE(curr, prev, threshold, ksize=None, min_area=None):
     difference = cv2.absdiff(curr, prev)
     _, mask = cv2.threshold(
         difference,
-        THRESH, 255,
+        threshold, 255,
         cv2.THRESH_BINARY
     )
     return cv2.countNonZero(mask)
 
 
 # Difference, blur (amount changes with ksize), mask and sum.
-def BLURRED(curr, prev, THRESH, KSIZE=11, MIN_AREA=None):
+def BLURRED(curr, prev, threshold, ksize=11, min_area=None):
     difference = cv2.absdiff(curr, prev)
-    blurred = cv2.medianBlur(difference, KSIZE)
+    blurred = cv2.medianBlur(difference, ksize)
     _, mask = cv2.threshold(
         blurred,
-        THRESH, 255,
+        threshold, 255,
         cv2.THRESH_BINARY
     )
     return cv2.countNonZero(mask)
 
 
 # Like BLURRED, but only sums drawn contours over given limit.
-def CONTOURS(curr, prev, THRESH, KSIZE=11, MIN_AREA=100):
+def CONTOURS(curr, prev, threshold, ksize=11, min_area=100):
     difference = cv2.absdiff(curr, prev)
-    blurred = cv2.medianBlur(difference, KSIZE)
+    blurred = cv2.medianBlur(difference, ksize)
 
     _, mask = cv2.threshold(
         blurred,
-        THRESH, 255,
+        threshold, 255,
         cv2.THRESH_BINARY
     )
 
@@ -239,7 +242,7 @@ def CONTOURS(curr, prev, THRESH, KSIZE=11, MIN_AREA=100):
     count = 0
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area > MIN_AREA:
+        if area > min_area:
             count += area
 
     return count
@@ -249,25 +252,23 @@ def CONTOURS(curr, prev, THRESH, KSIZE=11, MIN_AREA=100):
 
 
 # Requires data with filepaths.
-# Images may be cropped and cloned, depending on PREPROCESS function.
-# Returns a count value after image pair is sent to METHOD function.
-# If no CROP specified, CROP will equal dimensions of first photo.
+# Images may be cropped and cloned, depending on preprocess function.
+# Returns a count value after image pair is sent to method function.
+# If no crop specified, crop will equal dimensions of first photo.
 def process_jpgs(
     jpg_data,
-    METHOD=CONTOURS,
-    CROP=False, CLONE_TUPS=False,
-    THRESH=False, KSIZE=11, MIN_AREA=100
+    method=CONTOURS,
+    crop=False, clone=False,
+    threshold=False, ksize=11, min_area=100
 ):
 
-    if not THRESH:
-        THRESH_INIT = False
-    if not CROP:
-        CROP_INIT = False
+    if not threshold:
+        thresh_init = False
 
-    if not CLONE_TUPS:
-        PREPROCESS = CROP_EQUALIZE
+    if not clone:
+        preprocess = CROP_EQUALIZE
     else:
-        PREPROCESS = CROP_CLONE_EQUALIZE
+        preprocess = CROP_CLONE_EQUALIZE
 
     output = []
 
@@ -277,10 +278,10 @@ def process_jpgs(
         if i == 0:
             jpg = cv2.imread(row['filepath'], 0)
             h, w = jpg.shape
-            if not CROP:
-                CROP = (0, h, 0, w)
-            PX_COUNT = h*w
-            prev = PREPROCESS(jpg, CROP, CLONE_TUPS)
+            if not crop:
+                crop = (0, h, 0, w)
+            px_count = h*w
+            prev = preprocess(jpg, crop, clone)
         elif i % timer[0] == 0:
             progress = i * 10 // timer[0]
             elapsed = time.time() - timer[1]
@@ -296,15 +297,15 @@ def process_jpgs(
 
         jpg = cv2.imread(row['filepath'], 0)
 
-        row['median'] = hist_median(jpg, PX_COUNT)
+        row['median'] = hist_median(jpg, px_count)
 
-        curr = PREPROCESS(jpg, CROP, CLONE_TUPS)
+        curr = preprocess(jpg, crop, clone)
 
-        if not THRESH_INIT:
-            THRESH = row['median']*1.05
+        if not thresh_init:
+            threshold = row['median']*1.05
 
         try:
-            row['count'] = METHOD(curr, prev, THRESH, KSIZE, MIN_AREA)
+            row['count'] = method(curr, prev, threshold, ksize, min_area)
         except cv2.error as inst:
             if "(-209:Sizes" in str(inst):
                 (a, b), (c, d) = curr.shape[:2], prev.shape[:2]
@@ -313,8 +314,8 @@ def process_jpgs(
                 print(
                     "FUNCTION ABORTED!\n"
                     "Not all images are of same size, "
-                    "consider using the CROP parameter.\n"
-                    f"Try CROP={tup}."
+                    "consider using the crop parameter.\n"
+                    f"Try crop={tup}."
                 )
                 return tup
             else:
@@ -326,21 +327,40 @@ def process_jpgs(
     return output
 
 
+# ??? Do I want this?
 def force_process_jpgs(
     jpg_data,
     method=CONTOURS,
-    CROP=False, CLONE_TUPS=False,
-    THRESH=False, KSIZE=11, MIN_AREA=100
+    crop=False, clone=False,
+    threshold=False, ksize=11, min_area=100
 ):
-    output = CROP
+    output = crop
     while type(output) is tuple or output is False:
         output = process_jpgs(
-            jpg_data, METHOD, output, CLONE_TUPS, THRESH, KSIZE, MIN_AREA
+            jpg_data, method, output, clone, threshold, ksize, min_area
         )
     return output
 
 
-''' !!! THE MEAT AND POTATOES !!! '''
+# All necessary steps to enter data into Cam object.
+def construct_jpg_data(
+    dirpath=None,
+    parse_tags=DEFAULT_PARSE,
+    sort_key=DEFAULT_SORT,
+    process_options={}
+):
+    print("Navigate to image folder.")
+    jpg_paths = find_jpgs(dirpath)
+    print("All images found.")
+    jpg_data = attach_exif(jpg_paths, parse_tags)
+    jpg_data.sort(key=sort_key)
+    print("Started processing...")
+    output = process_jpgs(jpg_data, **process_options)
+    print(f"Done! {len(output)} images found.")
+    return output
+
+
+''' THE MEAT AND POTATOES '''
 
 
 # Requires data from process_jpg(). Object essentially holds data
@@ -743,19 +763,19 @@ class Cam():
 
 if __name__ == "__main__":
     print("1) Please navigate to folder with camera-trapping images.")
-    jpg_paths = find_jpgs('/Users/user/Desktop/images')
+    jpg_paths = find_jpgs()
 
     jpg_data = attach_exif(jpg_paths)
-    jpg_data.sort(key=lambda x: x['datetime'])
+    jpg_data.sort(key=DEFAULT_SORT)
 
     print("2) Images are being processed.")
-    processed_data = process_jpgs(jpg_data, METHOD=SIMPLE)
+    processed_data = process_jpgs(jpg_data)
 
     if type(processed_data) is not tuple:
         cam = Cam(processed_data)
 
         print("3) Please choose a location for an initial save.")
-        #cam.save()
+        cam.save()
 
         print("4) Use the interactive plot to select images for export.")
         print('\n'.join((
