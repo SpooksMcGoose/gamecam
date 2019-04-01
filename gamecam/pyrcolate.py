@@ -499,14 +499,14 @@ class Cam():
                     )
                     shutil.copy2(row['filepath'], new_path)
             if write_data:
-                with open(os.path.join(directory, '_export.dat'), 'w') as f:
+                with open(os.path.join(directory, '_export.csv'), 'w') as f:
                     variables = sorted(write_data[0].keys())
                     for i, row in enumerate(write_data):
                         if i != 0:
                             f.write('\n')
                         else:
-                            f.write('\t'.join(variables) + '\n')
-                        f.write('\t'.join(str(row[v]) for v in variables))
+                            f.write(','.join(variables) + '\n')
+                        f.write(','.join(str(row[v]) for v in variables))
             else:
                 print("NO IMAGES SELECTED FOR EXPORT!")
         else:
