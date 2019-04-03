@@ -19,7 +19,7 @@ from gamecam import pyrcolate as pyr
 
 jpg_data = pyr.construct_jpg_data() # creates data table from folder
 
-cam = Cam(jpg_data) # Cam objects store all relevant metadata
+cam = pyr.Cam(jpg_data) # Cam objects store all relevant metadata
 
 cam.quick_guide() # shows quick-guide for plot key bindings
 cam.plot()        # interactive plot for image filtering
