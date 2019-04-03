@@ -1,5 +1,6 @@
 import datetime
 import json
+import operator
 import os
 import shutil
 import sys
@@ -44,7 +45,9 @@ DIRECTION_MULTS = {
     "L": (0, 0, -1, -1)
 }
 
-DEFAULT_SORT = lambda x: x['datetime']
+
+def DEFAULT_SORT(x):
+    return x['datetime']
 
 
 ''' GENERAL FUNCTIONS '''
@@ -57,6 +60,7 @@ def to_24_hour(datetime):
 
 def extract_var(data, var):
     return [x[var] for x in data]
+
 
 # Tkinter works strangely inside of a class, so I moved it out here.
 def handle_tkinter(mode, init=None):
@@ -149,7 +153,8 @@ def attach_exif(jpg_data, parse_tags=DEFAULT_PARSE):
 
 
 # Quickly finds the median tone of a grayscale image.
-def hist_median(image, px_count):
+def hist_median(image):
+    px_count = image.shape[0] * image.shape[1]
     hist = cv2.calcHist([image], [0], None, [256], [0, 256])
 
     tally = 0
@@ -297,7 +302,7 @@ def process_jpgs(
 
         jpg = cv2.imread(row['filepath'], 0)
 
-        row['median'] = hist_median(jpg, px_count)
+        row['median'] = hist_median(jpg)
 
         curr = preprocess(jpg, crop, clone)
 
@@ -327,21 +332,6 @@ def process_jpgs(
     return output
 
 
-# ??? Do I want this?
-def force_process_jpgs(
-    jpg_data,
-    method=CONTOURS,
-    crop=False, clone=False,
-    threshold=False, ksize=11, min_area=100
-):
-    output = crop
-    while type(output) is tuple or output is False:
-        output = process_jpgs(
-            jpg_data, method, output, clone, threshold, ksize, min_area
-        )
-    return output
-
-
 # All necessary steps to enter data into Cam object.
 def construct_jpg_data(
     dirpath=None,
@@ -366,7 +356,13 @@ def construct_jpg_data(
 # Requires data from process_jpg(). Object essentially holds data
 # used in exporting, parameters for graphing, and plot function.
 class Cam():
-    def __init__(self, jpg_data=False):
+    def __init__(
+        self, jpg_data=False, resp_var='count', dt_var='datetime'
+    ):
+        self.resp_var = resp_var
+        self.dt_var = dt_var
+        self.true_dt = dt_var == 'datetime'
+
         self.plot_params = {
             "ceiling": 40000,
             "resp_thresh": 20000,
@@ -392,27 +388,43 @@ class Cam():
             self.jpg_data = list(jpg_data)
             self.length = len(self.jpg_data)
 
+            for row in self.jpg_data:
+                row['count'] = row[self.resp_var]
+                row['datetime'] = row[self.dt_var]
+
+            '''
             med_count = np.median(
                 extract_var(self.jpg_data, 'count')
             )
             self.plot_params['ceiling'] = 40000+(med_count - 500)*4
+            '''
+
+            self.plot_params['ceiling'] = np.percentile(
+                extract_var(self.jpg_data, 'count'),
+                80
+            )
             self.plot_params['resp_thresh'] = self.plot_params['ceiling'] / 2
 
             self.attach_diffs('datetime', 'timedelta')
             self.attach_diffs('median', 'med_diff')
+            self.attach_diffs('count', 'count_diff')
 
             for row in self.jpg_data:
-                hour = to_24_hour(row['datetime'])
-                row['from_midnight'] = (
-                    hour if hour < 12
-                    else (hour - 24) * -1
-                )
-                row['td_minutes'] = round(
-                    row['timedelta'].total_seconds() / 60, 2
-                )
                 row['med_diff'] = abs(row['med_diff'])
+                row['count_diff'] = abs(row['count_diff'])
                 row['selected'] = False
                 row['edited'] = False
+
+            if self.dt_var == 'datetime':
+                for row in self.jpg_data:
+                    hour = to_24_hour(row['datetime'])
+                    row['from_midnight'] = (
+                        hour if hour < 12
+                        else (hour - 24) * -1
+                    )
+                    row['td_minutes'] = round(
+                        row['timedelta'].total_seconds() / 60, 2
+                    )
 
     # Helps Tkinter initialize at last used path.
     def update_recent_folder(self, path):
@@ -434,11 +446,17 @@ class Cam():
             ]
             for row in temp_data:
                 if 'datetime' in row.keys():
-                    row['datetime'] = dt.strftime(
-                        row['datetime'], "%Y-%m-%d %H:%M:%S"
-                    )
+                    try:
+                        row['datetime'] = dt.strftime(
+                            row['datetime'], "%Y-%m-%d %H:%M:%S"
+                        )
+                    except TypeError:
+                        pass
                 if 'timedelta' in row.keys():
-                    row['timedelta'] = row['timedelta'].total_seconds()
+                    try:
+                        row['timedelta'] = row['timedelta'].total_seconds()
+                    except AttributeError:
+                        pass
                 if 'selected' in row.keys():
                     row['selected'] = int(row['selected'])
 
@@ -465,11 +483,18 @@ class Cam():
 
             for row in temp_data:
                 if 'datetime' in row.keys():
-                    row['datetime'] = dt.strptime(
-                        row['datetime'], "%Y-%m-%d %H:%M:%S"
-                    )
+                    try:
+                        row['datetime'] = dt.strptime(
+                            row['datetime'], "%Y-%m-%d %H:%M:%S"
+                        )
+                        self.true_dt = True
+                    except TypeError:
+                        self.true_dt = False
                 if 'timedelta' in row.keys():
-                    row['timedelta'] = td(seconds=row['timedelta'])
+                    try:
+                        row['timedelta'] = td(seconds=row['timedelta'])
+                    except AttributeError:
+                        pass
                 if 'selected' in row.keys():
                     row['selected'] = bool(row['selected'])
             self.jpg_data = temp_data.copy()
@@ -490,10 +515,15 @@ class Cam():
         if directory:
             write_data = []
 
-            for row in self.jpg_data:
+            for i, row in enumerate(self.jpg_data):
                 if row['selected']:
                     write_data.append(row.copy())
-                    dt_ISO = dt.strftime(row['datetime'], "%Y%m%dT%H%M%S")
+                    if self.dt_var == 'datetime':
+                        dt_ISO = dt.strftime(
+                            row['datetime'], "%Y%m%dT%H%M%S"
+                        )
+                    else:
+                        dt_ISO = str(i)
                     new_path = os.path.join(
                         directory, '_'.join((dt_ISO, row['filename']))
                     )
@@ -539,10 +569,11 @@ class Cam():
             if row["med_diff"] > self.plot_params["trans_thresh"]:
                 new_count = 0
                 self.mark_edits(i)
-            new_count *= 1 + (
-                self.plot_params['night_mult']
-                / (1 + 150**(row['from_midnight']-4.5))
-            )
+            if self.true_dt:
+                new_count *= 1 + (
+                    self.plot_params['night_mult']
+                    / (1 + 150**(row['from_midnight']-4.5))
+                )
 
             row["new_count"] = new_count
 
@@ -567,27 +598,48 @@ class Cam():
                 )
             prev = curr
 
-        for move in (1, -1):
-            prev = self.jpg_data[-(move < 0)]
-            for i in range(0, self.length, move):
-                curr = self.jpg_data[i]
-                boo = (
-                    not curr['selected']
-                    and prev['selected']
-                    and curr['new_count'] >= 0
-                )
-                if boo:
-                    if move == 1:
-                        curr['selected'] = (
-                            curr['td_minutes']
-                            <= self.plot_params["smooth_time"]
-                        )
-                    elif move == -1:
-                        curr['selected'] = (
-                            prev['td_minutes']
-                            <= self.plot_params["smooth_time"]
-                        )
-                prev = curr
+        if self.true_dt:
+            for move in (1, -1):
+                prev = self.jpg_data[-(move < 0)]
+                for i in range(0, self.length*move, move):
+                    curr = self.jpg_data[i]
+                    boo = (
+                        not curr['selected']
+                        and prev['selected']
+                        and curr['new_count'] >= 0
+                    )
+                    if boo:
+                        if move == 1:
+                            curr['selected'] = (
+                                curr['td_minutes']
+                                <= self.plot_params["smooth_time"]
+                            )
+                        elif move == -1:
+                            curr['selected'] = (
+                                prev['td_minutes']
+                                <= self.plot_params["smooth_time"]
+                            )
+                    prev = curr
+        else:
+            nudge = int(self.plot_params["smooth_time"])
+            master_set = set()
+            for i, row in enumerate(self.jpg_data):
+                if row['selected']:
+                    for func in (operator.add, operator.sub):
+                        for j in range(nudge+1):
+                            ind = func(i, j)
+                            try:
+                                row = self.jpg_data[ind]
+                                if row['new_count'] < 0:
+                                    if func == operator.sub:
+                                        master_set.add(ind)
+                                    break
+                                else:
+                                    master_set.add(ind)
+                            except IndexError:
+                                pass
+            for i in master_set:
+                self.jpg_data[i]['selected'] = True
 
     # Interactive plot for selected desired images.
     def plot(self):
@@ -716,7 +768,6 @@ class Cam():
             except TypeError:
                 pass
 
-
         plt.rc('font', **{'size': 8})
         plt.rcParams['keymap.back'] = 'left, backspace'
 
@@ -749,11 +800,14 @@ class Cam():
         fig.canvas.mpl_connect('key_release_event', off_key)
         fig.canvas.mpl_connect('button_press_event', on_click)
 
-        ax.fill_between(
-            np.arange(0, self.length) + 0.5, 0, CEIL_X,
-            where=[x['from_midnight'] < 4.5 for x in self.jpg_data],
-            facecolor='#003459', alpha=0.5
-        )
+        try:
+            ax.fill_between(
+                np.arange(0, self.length) + 0.5, 0, CEIL_X,
+                where=[x['from_midnight'] < 4.5 for x in self.jpg_data],
+                facecolor='#003459', alpha=0.5
+            )
+        except KeyError:
+            pass
 
         update()
         plt.show()
