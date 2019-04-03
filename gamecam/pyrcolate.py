@@ -31,6 +31,17 @@ from matplotlib.widgets import Slider
 ''' CONSTANTS '''
 
 
+GUIDE = '\n'.join((
+    "QUICK GUIDE:",
+    "   c - Hold to VIEW IMAGES in gallery.",
+    "   x - Hold and release to INCREASE response value to 1e5.",
+    "   z - Hold and release to DECREASE response value to -1.",
+    "   , - Hold and release to REMOVE EDITS.",
+    "   . - Press to RESET ALL EDITS.",
+    "   v - Press for EQUALIZED image (for dark images)."
+))
+
+
 # Default parser for the EXIF "Image DateTime" tag.
 def PARSE_DT(raw):
     return dt.strptime(str(raw), "%Y:%m:%d %H:%M:%S")
@@ -392,13 +403,6 @@ class Cam():
                 row['count'] = row[self.resp_var]
                 row['datetime'] = row[self.dt_var]
 
-            '''
-            med_count = np.median(
-                extract_var(self.jpg_data, 'count')
-            )
-            self.plot_params['ceiling'] = 40000+(med_count - 500)*4
-            '''
-
             self.plot_params['ceiling'] = np.percentile(
                 extract_var(self.jpg_data, 'count'),
                 80
@@ -641,6 +645,9 @@ class Cam():
             for i in master_set:
                 self.jpg_data[i]['selected'] = True
 
+    def quick_guide(self):
+        print(GUIDE)
+
     # Interactive plot for selected desired images.
     def plot(self):
 
@@ -832,15 +839,7 @@ if __name__ == "__main__":
         cam.save()
 
         print("4) Use the interactive plot to select images for export.")
-        print('\n'.join((
-            "QUICK GUIDE:",
-            "   c - Hold to VIEW IMAGES in gallery.",
-            "   x - Hold and release to INCREASE response value to 1e5.",
-            "   z - Hold and release to DECREASE response value to -1.",
-            "   , - Hold and release to REMOVE EDITS.",
-            "   . - Press to RESET ALL EDITS.",
-            "   v - Press for EQUALIZED image (for dark images)."
-        )))
+        cam.quick_guide()
         cam.plot()
 
         print("5) Save once again, so changes are recorded.")
