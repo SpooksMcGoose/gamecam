@@ -5,11 +5,14 @@ with open("README.md", "r") as f:
 
 setuptools.setup(
     name="gamecam-sdrabing",
-    version="0.6.0",
+    version="0.6.1",
     author="Shane Drabing",
     author_email="shane.drabing@gmail.com",
     packages=setuptools.find_packages(),
-    scripts=['scripts/sandbox.py', 'scripts/pyrcolate_script.py'],
+    scripts=[
+        "scripts/sandbox.py",
+        "scripts/pyrcolate_script.py"
+    ],
     url="https://github.com/SpooksMcGoose/gamecam",
     description="Remote-camera software suite.",
     long_description=long_description,
@@ -19,4 +22,10 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    data_files=[
+        ("", ["LICENSE.txt"])
+    ],
+    install_requires=[
+        "opencv-python", "ExifRead", "numpy", "matplotlib"
+    ]
 )
