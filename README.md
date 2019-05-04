@@ -27,6 +27,9 @@ cam.save()        # creates a .sav file that can be loaded
 cam.export()      # images and .csv file are exported to folder
 ```
 
+## To-Do
+Finish gamecam.classipy, which will allow for rapid labeling of exported images.
+
 ## Contributing
 This is my first project, so I have no idea what I'm doing.
 If you have suggestions or tips, please tell me!

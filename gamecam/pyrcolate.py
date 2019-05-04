@@ -27,10 +27,10 @@ from matplotlib import pyplot as plt
 from matplotlib.widgets import Slider
 
 
-''' CONSTANTS '''
+# CONSTANTS
 
 
-GUIDE = '\n'.join((
+GUIDE = "\n".join((
     "QUICK GUIDE:",
     "   c - Hold to VIEW IMAGES in gallery.",
     "   x - Hold and release to INCREASE response value to 1e5.",
@@ -41,12 +41,16 @@ GUIDE = '\n'.join((
 ))
 
 
-# Default parser for the EXIF "Image DateTime" tag.
 def PARSE_DT(raw):
+    """Default parser for EXIF "Image DateTime" tag.
+    """
+
     return dt.strptime(str(raw), "%Y:%m:%d %H:%M:%S")
 
 
-DEFAULT_PARSE = [("Image DateTime", 'datetime', PARSE_DT)]
+DEFAULT_PARSE = [
+    ("Image DateTime", "datetime", PARSE_DT)
+]
 
 DIRECTION_MULTS = {
     "A": (-1, -1, 0, 0),
@@ -56,42 +60,67 @@ DIRECTION_MULTS = {
 }
 
 
-def DEFAULT_SORT(x):
-    return x['datetime']
-
-
-''' GENERAL FUNCTIONS '''
+# GENERAL FUNCTIONS
 
 
 def to_24_hour(datetime):
+    """Converts datetime.datetime type to 24 hour float type.
+    """
+
     time = datetime.time()
     return time.hour + time.minute / 60 + time.second / 3600
 
 
 def extract_var(data, var):
+    """Returns a list of values corresponding to a variable name.
+
+    >>> foo = [{'name': 'Shane', 'age': 22}, {'name': 'Eve', 'age': 7}]
+    >>> extract_var(data=foo, var='name')
+    ['Shane', 'Eve']
+    """
+
     return [x[var] for x in data]
 
 
 # Tkinter works strangely inside of a class, so I moved it out here.
 def handle_tkinter(mode, init=None):
+    """Used for making basic Tkinter dialog calls.
+
+    For some reason, Tkinter doesn't like to be used within a class,
+    so this is here instead.
+
+    Parameters
+    ----------
+    mode : {'savefile', 'openfile', 'opendir'}
+        Type of file dialog to call.
+
+    init : str, optional
+        Starting path for file dialog.
+
+    Returns
+    -------
+    str
+        User-selected path name from file dialog.
+    """
+
     root = tk.Tk()
     root.withdraw()
 
     if init is None:
         init = os.path.expanduser("~")
 
-    if mode == 'savefile':
+    if mode == "savefile":
         output = filedialog.asksaveasfilename(
             initialdir=init,
             filetypes=(("Save files", "*.sav"), ("All files", "*.*"))
         )
-    elif mode == 'openfile':
+    elif mode == "openfile":
         output = filedialog.askopenfilename(
             initialdir=init,
             title="Select file",
             filetypes=(("Save files", "*.sav"), ("All files", "*.*"))
         )
-    elif mode == 'opendir':
+    elif mode == "opendir":
         output = filedialog.askdirectory(
             initialdir=init,
             title="Select folder",
@@ -108,34 +137,34 @@ def strfdelta(tdelta, fmt):
     d["hours"], rem = divmod(tdelta.seconds, 3600)
     d["minutes"], d["seconds"] = divmod(rem, 60)
     for k, v in d.items():
-        if k != 'days':
-            d[k] = str(d[k]).rjust(2, '0')
+        if k != "days":
+            d[k] = str(d[k]).rjust(2, "0")
     return fmt.format(**d)
 
 
-''' SPECIFIC FUNCTIONS (ALL BELOW) '''
+# SPECIFIC FUNCTIONS (ALL BELOW)
 
 
 # Recursive walk finding all JPG images below home_path.
 def find_jpgs(dirpath=None):
     if dirpath is None:
-        dirpath = handle_tkinter('opendir')
+        dirpath = handle_tkinter("opendir")
 
     if dirpath:
         output = []
 
         for dir_, subdir, files in os.walk(dirpath):
-            if '_selected' not in dir_:
+            if "_selected" not in dir_:
                 found = (
                     f for f in files
-                    if f.upper().endswith(('.JPG', '.JPEG'))
+                    if f.upper().endswith((".JPG", ".JPEG"))
                 )
                 for filename in found:
                     filepath = os.path.join(dir_, filename)
 
                     output.append({
-                        'filename': filename,
-                        'filepath': filepath
+                        "filename": filename,
+                        "filepath": filepath
                     })
 
         return output
@@ -151,7 +180,7 @@ def attach_exif(jpg_data, parse_tags=DEFAULT_PARSE):
 
     for deep_row in jpg_data:
         row = deep_row.copy()
-        file = open(row['filepath'], "rb")
+        file = open(row["filepath"], "rb")
         tags = er.process_file(file, details=False)
 
         for t, var, anon in parse_tags:
@@ -189,7 +218,7 @@ def generate_clone_tuples(clone_to, clone_from):
     return (tuple(clone_to), tuple(clone_from))
 
 
-''' IMAGE PREPROCESSING '''
+# IMAGE PREPROCESSING
 
 
 def CROPPER(image, crop):
@@ -213,7 +242,7 @@ def CROP_CLONE_EQUALIZE(image, crop, clone):
     return cv2.equalizeHist(image)
 
 
-''' FRAME DIFFERENCING METHODS '''
+# FRAME DIFFERENCING METHODS
 
 
 # Bare-bones. Take difference, threshold, and sum the mask.
@@ -263,7 +292,7 @@ def CONTOURS(curr, prev, threshold, ksize=11, min_area=100):
     return count
 
 
-''' JPG PROCESSING '''
+# JPG PROCESSING
 
 
 # Requires data with filepaths.
@@ -291,7 +320,7 @@ def process_jpgs(
     for i, deep_row in enumerate(jpg_data):
         row = deep_row.copy()
         if i == 0:
-            jpg = cv2.imread(row['filepath'], 0)
+            jpg = cv2.imread(row["filepath"], 0)
             h, w = jpg.shape
             if not crop:
                 crop = (0, h, 0, w)
@@ -310,17 +339,17 @@ def process_jpgs(
                 f"{remain} left."
             )
 
-        jpg = cv2.imread(row['filepath'], 0)
+        jpg = cv2.imread(row["filepath"], 0)
 
-        row['median'] = hist_median(jpg)
+        row["median"] = hist_median(jpg)
 
         curr = preprocess(jpg, crop, clone)
 
         if not thresh_init:
-            threshold = row['median']*1.05
+            threshold = row["median"]*1.05
 
         try:
-            row['count'] = method(curr, prev, threshold, ksize, min_area)
+            row["count"] = method(curr, prev, threshold, ksize, min_area)
         except cv2.error as inst:
             if "(-209:Sizes" in str(inst):
                 (a, b), (c, d) = curr.shape[:2], prev.shape[:2]
@@ -346,7 +375,7 @@ def process_jpgs(
 def construct_jpg_data(
     dirpath=None,
     parse_tags=DEFAULT_PARSE,
-    sort_key=DEFAULT_SORT,
+    sort_key=lambda x: x['datetime'],
     process_options={}
 ):
     print("Navigate to image folder.")
@@ -360,18 +389,14 @@ def construct_jpg_data(
     return output
 
 
-''' THE MEAT AND POTATOES '''
+# THE MEAT AND POTATOES
 
 
 # Requires data from process_jpg(). Object essentially holds data
 # used in exporting, parameters for graphing, and plot function.
 class Cam():
-    def __init__(
-        self, jpg_data=False, resp_var='count', dt_var='datetime'
-    ):
+    def __init__(self, jpg_data=False, resp_var="count"):
         self.resp_var = resp_var
-        self.dt_var = dt_var
-        self.true_dt = dt_var == 'datetime'
 
         self.plot_params = {
             "ceiling": 40000,
@@ -398,35 +423,33 @@ class Cam():
             self.jpg_data = list(jpg_data)
             self.length = len(self.jpg_data)
 
-            for row in self.jpg_data:
-                row['count'] = row[self.resp_var]
-                row['datetime'] = row[self.dt_var]
+            self.dt_present = "datetime" in self.jpg_data[0].keys()
 
-            self.plot_params['ceiling'] = np.percentile(
-                extract_var(self.jpg_data, 'count'),
-                80
+            for row in self.jpg_data:
+                row["count"] = row[self.resp_var]
+
+            self.plot_params["ceiling"] = np.percentile(
+                extract_var(self.jpg_data, "count"), 80
             )
-            self.plot_params['resp_thresh'] = self.plot_params['ceiling'] / 2
+            self.plot_params["resp_thresh"] = self.plot_params["ceiling"] / 2
 
-            self.attach_diffs('datetime', 'timedelta')
-            self.attach_diffs('median', 'med_diff')
-            self.attach_diffs('count', 'count_diff')
+            self.attach_diffs("median", "med_diff")
 
             for row in self.jpg_data:
-                row['med_diff'] = abs(row['med_diff'])
-                row['count_diff'] = abs(row['count_diff'])
-                row['selected'] = False
-                row['edited'] = False
+                row["med_diff"] = abs(row["med_diff"])
+                row["selected"] = False
+                row["edited"] = False
 
-            if self.dt_var == 'datetime':
+            if self.dt_present:
+                self.attach_diffs("datetime", "timedelta")
                 for row in self.jpg_data:
-                    hour = to_24_hour(row['datetime'])
-                    row['from_midnight'] = (
+                    hour = to_24_hour(row["datetime"])
+                    row["from_midnight"] = (
                         hour if hour < 12
                         else (hour - 24) * -1
                     )
-                    row['td_minutes'] = round(
-                        row['timedelta'].total_seconds() / 60, 2
+                    row["td_minutes"] = round(
+                        row["timedelta"].total_seconds() / 60, 2
                     )
 
     # Helps Tkinter initialize at last used path.
@@ -441,31 +464,25 @@ class Cam():
         if path:
             filename = path
         else:
-            filename = handle_tkinter('savefile', self.recent_folder)
+            filename = handle_tkinter("savefile", self.recent_folder)
         if filename:
             temp_data = [
                 {k: v for k, v in row.items()}
                 for row in self.jpg_data
             ]
             for row in temp_data:
-                if 'datetime' in row.keys():
-                    try:
-                        row['datetime'] = dt.strftime(
-                            row['datetime'], "%Y-%m-%d %H:%M:%S"
-                        )
-                    except TypeError:
-                        pass
-                if 'timedelta' in row.keys():
-                    try:
-                        row['timedelta'] = row['timedelta'].total_seconds()
-                    except AttributeError:
-                        pass
-                if 'selected' in row.keys():
-                    row['selected'] = int(row['selected'])
+                if "datetime" in row.keys():
+                    row["datetime"] = dt.strftime(
+                        row["datetime"], "%Y-%m-%d %H:%M:%S"
+                    )
+                if "timedelta" in row.keys():
+                    row["timedelta"] = row["timedelta"].total_seconds()
+                if "selected" in row.keys():
+                    row["selected"] = int(row["selected"])
 
-            with open(filename, 'w') as f:
-                f.write(json.dumps(self.plot_params) + '\n')
-                f.write(json.dumps(temp_data) + '\n')
+            with open(filename, "w") as f:
+                f.write(json.dumps(self.plot_params) + "\n")
+                f.write(json.dumps(temp_data) + "\n")
                 f.write(json.dumps(self.user_edits))
             self.update_recent_folder(filename)
         else:
@@ -476,30 +493,29 @@ class Cam():
         if path:
             filename = path
         else:
-            filename = handle_tkinter('openfile', self.recent_folder)
+            filename = handle_tkinter("openfile", self.recent_folder)
         self.update_recent_folder(filename)
         if filename:
-            with open(filename, 'r') as f:
+            with open(filename, "r") as f:
                 self.plot_params = json.loads(next(f))
                 temp_data = json.loads(next(f))
                 temp_dict = json.loads(next(f))
 
             for row in temp_data:
-                if 'datetime' in row.keys():
+                if "datetime" in row.keys():
+                    row["datetime"] = dt.strptime(
+                        row["datetime"], "%Y-%m-%d %H:%M:%S"
+                    )
+                    self.dt_present = True
+                else:
+                    self.dt_present = False
+                if "timedelta" in row.keys():
                     try:
-                        row['datetime'] = dt.strptime(
-                            row['datetime'], "%Y-%m-%d %H:%M:%S"
-                        )
-                        self.true_dt = True
-                    except TypeError:
-                        self.true_dt = False
-                if 'timedelta' in row.keys():
-                    try:
-                        row['timedelta'] = td(seconds=row['timedelta'])
+                        row["timedelta"] = td(seconds=row["timedelta"])
                     except AttributeError:
                         pass
-                if 'selected' in row.keys():
-                    row['selected'] = bool(row['selected'])
+                if "selected" in row.keys():
+                    row["selected"] = bool(row["selected"])
             self.jpg_data = temp_data.copy()
             self.length = len(self.jpg_data)
 
@@ -513,33 +529,33 @@ class Cam():
         if path:
             directory = path
         else:
-            directory = handle_tkinter('opendir', self.recent_folder)
+            directory = handle_tkinter("opendir", self.recent_folder)
         self.update_recent_folder(directory)
         if directory:
             write_data = []
 
             for i, row in enumerate(self.jpg_data):
-                if row['selected']:
+                if row["selected"]:
                     write_data.append(row.copy())
-                    if self.dt_var == 'datetime':
+                    if self.dt_present:
                         dt_ISO = dt.strftime(
-                            row['datetime'], "%Y%m%dT%H%M%S"
+                            row["datetime"], "%Y%m%dT%H%M%S"
                         )
                     else:
                         dt_ISO = str(i)
                     new_path = os.path.join(
-                        directory, '_'.join((dt_ISO, row['filename']))
+                        directory, "_".join((dt_ISO, row["filename"]))
                     )
-                    shutil.copy2(row['filepath'], new_path)
+                    shutil.copy2(row["filepath"], new_path)
             if write_data:
-                with open(os.path.join(directory, '_export.csv'), 'w') as f:
+                with open(os.path.join(directory, "_export.csv"), "w") as f:
                     variables = sorted(write_data[0].keys())
                     for i, row in enumerate(write_data):
                         if i != 0:
-                            f.write('\n')
+                            f.write("\n")
                         else:
-                            f.write(','.join(variables) + '\n')
-                        f.write(','.join(str(row[v]) for v in variables))
+                            f.write(",".join(variables) + "\n")
+                        f.write(",".join(str(row[v]) for v in variables))
             else:
                 print("NO IMAGES SELECTED FOR EXPORT!")
         else:
@@ -567,15 +583,15 @@ class Cam():
     # User edits are applied.
     def update_counts(self):
         for i, row in enumerate(self.jpg_data):
-            row['edited'] = False
+            row["edited"] = False
             new_count = row["count"]
             if row["med_diff"] > self.plot_params["trans_thresh"]:
                 new_count = 0
                 self.mark_edits(i)
-            if self.true_dt:
+            if self.dt_present:
                 new_count *= 1 + (
-                    self.plot_params['night_mult']
-                    / (1 + 150**(row['from_midnight']-4.5))
+                    self.plot_params["night_mult"]
+                    / (1 + 150**(row["from_midnight"]-4.5))
                 )
 
             row["new_count"] = new_count
@@ -590,36 +606,36 @@ class Cam():
     def update_events(self):
         prev = self.jpg_data[0]
         for i, curr in enumerate(self.jpg_data):
-            prev['selected'] = (
-                prev['new_count'] > self.plot_params["resp_thresh"]
-                or curr['new_count'] > self.plot_params["resp_thresh"]
+            prev["selected"] = (
+                prev["new_count"] > self.plot_params["resp_thresh"]
+                or curr["new_count"] > self.plot_params["resp_thresh"]
             )
 
             if i == self.length-1:
-                curr['selected'] = (
-                    curr['new_count'] > self.plot_params["resp_thresh"]
+                curr["selected"] = (
+                    curr["new_count"] > self.plot_params["resp_thresh"]
                 )
             prev = curr
 
-        if self.true_dt:
+        if self.dt_present:
             for move in (1, -1):
                 prev = self.jpg_data[-(move < 0)]
                 for i in range(0, self.length*move, move):
                     curr = self.jpg_data[i]
                     boo = (
-                        not curr['selected']
-                        and prev['selected']
-                        and curr['new_count'] >= 0
+                        not curr["selected"]
+                        and prev["selected"]
+                        and curr["new_count"] >= 0
                     )
                     if boo:
                         if move == 1:
-                            curr['selected'] = (
-                                curr['td_minutes']
+                            curr["selected"] = (
+                                curr["td_minutes"]
                                 <= self.plot_params["smooth_time"]
                             )
                         elif move == -1:
-                            curr['selected'] = (
-                                prev['td_minutes']
+                            curr["selected"] = (
+                                prev["td_minutes"]
                                 <= self.plot_params["smooth_time"]
                             )
                     prev = curr
@@ -627,13 +643,13 @@ class Cam():
             nudge = int(self.plot_params["smooth_time"])
             master_set = set()
             for i, row in enumerate(self.jpg_data):
-                if row['selected']:
+                if row["selected"]:
                     for func in (operator.add, operator.sub):
                         for j in range(nudge+1):
                             ind = func(i, j)
                             try:
                                 row = self.jpg_data[ind]
-                                if row['new_count'] < 0:
+                                if row["new_count"] < 0:
                                     if func == operator.sub:
                                         master_set.add(ind)
                                     break
@@ -642,20 +658,24 @@ class Cam():
                             except IndexError:
                                 pass
             for i in master_set:
-                self.jpg_data[i]['selected'] = True
+                self.jpg_data[i]["selected"] = True
 
     def quick_guide(self):
         print(GUIDE)
 
     # Interactive plot for selected desired images.
     def plot(self):
+        try:
+            self.jpg_data
+        except AttributeError as inst:
+            raise inst
 
-        CEIL_X = self.plot_params['ceiling']*1.5
+        CEIL_X = self.plot_params["ceiling"]*1.5
         SLIDER_PARAMS = [
-            ('RESP', 0.08, CEIL_X, self.plot_params['resp_thresh'], '%i'),
-            ('TRANS', 0.06, 120, self.plot_params['trans_thresh'], '%1.1f'),
-            ('SMOOTH', 0.04, 10, self.plot_params['smooth_time'], '%1.1f'),
-            ('NIGHT', 0.02, 50, self.plot_params['night_mult'], '%i')
+            ("RESP", 0.08, CEIL_X, self.plot_params["resp_thresh"], "%i"),
+            ("TRANS", 0.06, 120, self.plot_params["trans_thresh"], "%1.1f"),
+            ("SMOOTH", 0.04, 10, self.plot_params["smooth_time"], "%1.1f"),
+            ("NIGHT", 0.02, 50, self.plot_params["night_mult"], "%i")
         ]
 
         def update():
@@ -667,33 +687,33 @@ class Cam():
             for name in self.lines.keys():
                 self.lines[name].remove()
 
-            CEIL_X = self.plot_params['ceiling']*1.5
-            np_counts = np.array(extract_var(self.jpg_data, 'new_count'))
+            CEIL_X = self.plot_params["ceiling"]*1.5
+            np_counts = np.array(extract_var(self.jpg_data, "new_count"))
 
-            self.lines['edited'] = ax.fill_between(
+            self.lines["edited"] = ax.fill_between(
                 np.arange(0, self.length) + 0.5, 0, CEIL_X,
-                where=extract_var(self.jpg_data, 'edited'),
-                facecolor='#D8BFAA', alpha=0.5
+                where=extract_var(self.jpg_data, "edited"),
+                facecolor="#D8BFAA", alpha=0.5
             )
-            self.lines['selected'] = ax.fill_between(
+            self.lines["selected"] = ax.fill_between(
                 np.arange(0, self.length) + 0.5, 0, CEIL_X,
-                where=extract_var(self.jpg_data, 'selected'),
-                facecolor='#F00314'
+                where=extract_var(self.jpg_data, "selected"),
+                facecolor="#F00314"
             )
-            self.lines['count'] = ax.fill_between(
+            self.lines["count"] = ax.fill_between(
                 range(self.length), 0, np_counts,
-                facecolor='black'
+                facecolor="black"
             )
-            self.lines['threshold'] = ax.axhline(
-                self.plot_params['resp_thresh'], color='#14B37D'
+            self.lines["threshold"] = ax.axhline(
+                self.plot_params["resp_thresh"], color="#14B37D"
             )
 
             fig.canvas.draw_idle()
 
         def on_slide(val):
             for key in self.plot_params.keys():
-                if key != 'ceiling':
-                    slider_key = key[:key.find('_')].upper()
+                if key != "ceiling":
+                    slider_key = key[:key.find("_")].upper()
                     self.plot_params[key] = self.sliders[slider_key].val
             update()
 
@@ -717,7 +737,7 @@ class Cam():
                     self.buffer[0].append(self.buffer[0].pop(ind))
                     self.buffer[1].append(self.buffer[1].pop(ind))
                 else:
-                    img = cv2.imread(self.jpg_data[n]['filepath'])
+                    img = cv2.imread(self.jpg_data[n]["filepath"])
                     self.buffer[0] = self.buffer[0][1:] + [n]
                     self.buffer[1] = self.buffer[1][1:] + [img]
 
@@ -743,30 +763,30 @@ class Cam():
             if event.xdata is not None:
                 if self.press[0] is None:
                     i = int(round(event.xdata))
-                    if event.key == 'z':
+                    if event.key == "z":
                         self.press = [-1, i]
-                    elif event.key == 'x':
+                    elif event.key == "x":
                         self.press = [1e5, i]
-                    elif event.key == ',':
+                    elif event.key == ",":
                         self.press = [0, i]
-                if event.key in 'zxc,':
+                if event.key in "zxc,":
                     image_pano(event.xdata)
-                elif event.key == 'v':
+                elif event.key == "v":
                     self.toggle = not self.toggle
                     image_pano(event.xdata)
-                elif event.key == '.':
+                elif event.key == ".":
                     self.user_edits = {}
 
         def off_key(event):
             try:
-                if event.xdata is not None and event.key in 'zx,':
+                if event.xdata is not None and event.key in "zx,":
                     i = int(round(event.xdata))
                     low, high = sorted((self.press[1], i))
                     lo_to_hi = range(max(0, low), min(self.length, high+1))
-                    if event.key in 'zx':
+                    if event.key in "zx":
                         new_edits = {i: self.press[0] for i in lo_to_hi}
                         self.user_edits = {**self.user_edits, **new_edits}
-                    elif event.key == ',':
+                    elif event.key == ",":
                         for i in lo_to_hi:
                             self.user_edits.pop(i, None)
                 self.press = [None, None]
@@ -774,43 +794,43 @@ class Cam():
             except TypeError:
                 pass
 
-        plt.rc('font', **{'size': 8})
-        plt.rcParams['keymap.back'] = 'left, backspace'
+        plt.rc("font", **{"size": 8})
+        plt.rcParams["keymap.back"] = "left, backspace"
 
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        fig.canvas.set_window_title('Response Filtering')
+        fig.canvas.set_window_title("Response Filtering")
         fig.subplots_adjust(0.07, 0.18, 0.97, 0.97)
 
         ax.grid(alpha=0.4)
         ax.set_axisbelow(True)
-        ax.set_ylim([0, self.plot_params['ceiling']])
+        ax.set_ylim([0, self.plot_params["ceiling"]])
         ax.set_xlim([0, min(500, self.length)])
 
         ax.set_xlabel("Frame")
         ax.set_ylabel("Response")
         plt.yticks(rotation=45)
 
-        for name in ('count', 'threshold', 'selected', 'edited'):
+        for name in ("count", "threshold", "selected", "edited"):
             self.lines[name] = ax.axhline()
 
         for name, pos, max_val, init, fmt in SLIDER_PARAMS:
             slider_ax = fig.add_axes([0.125, pos, 0.8, 0.02])
             self.sliders[name] = Slider(
                 slider_ax, name, 0, max_val,
-                valinit=init, valfmt=fmt, color='#003459', alpha=0.5
+                valinit=init, valfmt=fmt, color="#003459", alpha=0.5
             )
             self.sliders[name].on_changed(on_slide)
 
-        fig.canvas.mpl_connect('key_press_event', on_key)
-        fig.canvas.mpl_connect('key_release_event', off_key)
-        fig.canvas.mpl_connect('button_press_event', on_click)
+        fig.canvas.mpl_connect("key_press_event", on_key)
+        fig.canvas.mpl_connect("key_release_event", off_key)
+        fig.canvas.mpl_connect("button_press_event", on_click)
 
         try:
             ax.fill_between(
                 np.arange(0, self.length) + 0.5, 0, CEIL_X,
-                where=[x['from_midnight'] < 4.5 for x in self.jpg_data],
-                facecolor='#003459', alpha=0.5
+                where=[x["from_midnight"] < 4.5 for x in self.jpg_data],
+                facecolor="#003459", alpha=0.5
             )
         except KeyError:
             pass
@@ -821,15 +841,18 @@ class Cam():
         cv2.destroyAllWindows()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and False:
     print("1) Please navigate to folder with camera-trapping images.")
     jpg_paths = find_jpgs()
 
     jpg_data = attach_exif(jpg_paths)
-    jpg_data.sort(key=DEFAULT_SORT)
+    jpg_data.sort(key=lambda x: x['datetime'])
 
     print("2) Images are being processed.")
     processed_data = process_jpgs(jpg_data)
+
+    for row in processed_data:
+        del row['datetime']
 
     if type(processed_data) is not tuple:
         cam = Cam(processed_data)
