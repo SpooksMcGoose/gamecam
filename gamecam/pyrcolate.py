@@ -9,19 +9,8 @@ import cv2
 import exifread as er
 import numpy as np
 
+from gamecam import handle_tkinter, find_imgs
 from datetime import datetime as dt, timedelta as td
-
-try:
-    import tkinter as tk
-    from tkinter import filedialog
-except ImportError:
-    import Tkinter as tk
-    from Tkinter import filedialog
-
-# Work-around a weird tkinter / matplotlib interaction.
-# Note: I would use TkAgg backend, but key bouncing breaks the plot.
-root = tk.Tk()
-root.withdraw()
 
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Slider
@@ -97,54 +86,6 @@ def extract_var(data, var):
     return [x[var] for x in data]
 
 
-def handle_tkinter(mode, init=None):
-    """Used for making basic Tkinter dialog calls.
-
-    For some reason, Tkinter doesn"t like to be used within a class,
-    so this is here instead.
-
-    Parameters
-    ----------
-    mode : {"savefile", "openfile", "opendir"}
-        Type of file dialog to call.
-    init : str, optional
-        Starting path for file dialog.
-
-    Returns
-    -------
-    str
-        User-selected path name from file dialog.
-    """
-
-    root = tk.Tk()
-    root.withdraw()
-
-    if init is None:
-        init = os.path.expanduser("~")
-
-    if mode == "savefile":
-        output = filedialog.asksaveasfilename(
-            initialdir=init,
-            filetypes=(("Save files", "*.sav"), ("All files", "*.*"))
-        )
-    elif mode == "openfile":
-        output = filedialog.askopenfilename(
-            initialdir=init,
-            title="Select file",
-            filetypes=(("Save files", "*.sav"), ("All files", "*.*"))
-        )
-    elif mode == "opendir":
-        output = filedialog.askdirectory(
-            initialdir=init,
-            title="Select folder",
-        )
-
-    root.update()
-    root.destroy()
-
-    return output
-
-
 def strfdelta(tdelta, fmt):
     """Formats a timedelta object as a string.
 
@@ -173,49 +114,6 @@ def strfdelta(tdelta, fmt):
 # SPECIFIC FUNCTIONS (ALL BELOW)
 
 
-def find_jpgs(dirpath=None, img_type=(".jpg", ".jpeg")):
-    """Walks directory path, finding all files ending in .jpg or .jpeg.
-
-    Parameters
-    ----------
-    dirpath : str, optional
-        If no path provided, the user can navigate to it via tkinter window.
-    img_type : tuple, optional
-        By default, finds JPG image types, but can be changed if camera
-        exports a different filetype.
-
-    Returns
-    -------
-    list of dictionaries
-        Contains filenames and filepaths.
-    """
-
-    if dirpath is None:
-        dirpath = handle_tkinter("opendir")
-
-    if dirpath:
-        output = []
-
-        for dir_, subdir, files in os.walk(dirpath):
-            if "_selected" not in dir_:
-                found = (
-                    f for f in files
-                    if f.lower().endswith(img_type)
-                )
-                for filename in found:
-                    filepath = os.path.join(dir_, filename)
-
-                    output.append({
-                        "filename": filename,
-                        "filepath": filepath
-                    })
-
-        return output
-    else:
-        print("NO IMAGE DIRECTORY SPECIFIED!")
-        return []
-
-
 def attach_exif(jpg_data, parse_tags=DEFAULT_PARSE):
     """Loops through jpg_data, reading filepaths and attaching EXIF data.
 
@@ -223,7 +121,7 @@ def attach_exif(jpg_data, parse_tags=DEFAULT_PARSE):
     ----------
     jpg_data : list of dictionaries
         Requires that "filepath" is in dictionary keys, which is easily
-        provided by find_jpgs() prior to this function.
+        provided by find_imgs() prior to this function.
     parse_tags : list of tuples, optional
         By default, only Image DateTime is retrieved from EXIF data using
         DEFAULT_PARSE. Examine DEFAULT_PARSE as an example parameter to
@@ -498,7 +396,7 @@ def process_jpgs(
     ----------
     jpg_data : list of dictionaries
         Requires that "filepath" is in dictionary keys, which is easily
-        provided by find_jpgs() prior to this function.
+        provided by find_imgs() prior to this function.
     method : function, {SIMPLE, BLURRED, COUNTOURS}
         Determines the frame differencing method to use. Ordered from
         left to right based on increasing accuracy, decreasing speed.
@@ -621,7 +519,7 @@ def construct_jpg_data(
 
     if dirpath is None:
         print("Navigate to image folder.")
-    jpg_paths = find_jpgs(dirpath)
+    jpg_paths = find_imgs(dirpath)
     print(f"{len(jpg_paths)} images found.")
     jpg_data = attach_exif(jpg_paths, parse_tags)
     jpg_data.sort(key=sort_key)
@@ -1157,7 +1055,7 @@ class Cam():
 
 if __name__ == "__main__":
     print("1) Please navigate to folder with camera-trapping images.")
-    jpg_paths = find_jpgs()
+    jpg_paths = find_imgs()
 
     jpg_data = attach_exif(jpg_paths)
     jpg_data.sort(key=lambda x: x["datetime"])
