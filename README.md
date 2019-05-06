@@ -21,7 +21,7 @@ jpg_data = pyr.construct_jpg_data() # creates data table from folder
 
 cam = pyr.Cam(jpg_data) # Cam objects store all relevant metadata
 
-cam.quick_guide() # shows quick-guide for plot key bindings
+help(Cam.plot)    # shows quick-guide for plot key bindings
 cam.plot()        # interactive plot for image filtering
 cam.save()        # creates a .sav file that can be loaded
 cam.export()      # images and .csv file are exported to folder

@@ -3,4 +3,5 @@ build
 dist
 test.py
 .DS_Store
+.Rhistory
 *.egg-info
