@@ -48,9 +48,24 @@ def PARSE_DT(raw):
     return dt.strptime(str(raw), "%Y:%m:%d %H:%M:%S")
 
 
+def SORT_BY_DT(row):
+    """Default sort for construct_jpg_data().
+    """
+
+    return row["datetime"]
+
+
 DEFAULT_PARSE = [
     ("Image DateTime", "datetime", PARSE_DT)
 ]
+
+DEFAULT_PLOT_PARAMS = {
+    "ceiling": 40000,
+    "resp_thresh": 20000,
+    "trans_thresh": 30,
+    "smooth_time": 1,
+    "night_mult": 0
+}
 
 DIRECTION_MULTS = {
     "A": (-1, -1, 0, 0),
@@ -74,26 +89,24 @@ def to_24_hour(datetime):
 def extract_var(data, var):
     """Returns a list of values corresponding to a variable name.
 
-    >>> foo = [{'name': 'Shane', 'age': 22}, {'name': 'Eve', 'age': 7}]
-    >>> extract_var(data=foo, var='name')
-    ['Shane', 'Eve']
+    >>> foo = [{"name": "Shane", "age": 22}, {"name": "Eve", "age": 7}]
+    >>> extract_var(data=foo, var="name")
+    ["Shane", "Eve"]
     """
 
     return [x[var] for x in data]
 
 
-# Tkinter works strangely inside of a class, so I moved it out here.
 def handle_tkinter(mode, init=None):
     """Used for making basic Tkinter dialog calls.
 
-    For some reason, Tkinter doesn't like to be used within a class,
+    For some reason, Tkinter doesn"t like to be used within a class,
     so this is here instead.
 
     Parameters
     ----------
-    mode : {'savefile', 'openfile', 'opendir'}
+    mode : {"savefile", "openfile", "opendir"}
         Type of file dialog to call.
-
     init : str, optional
         Starting path for file dialog.
 
@@ -133,6 +146,21 @@ def handle_tkinter(mode, init=None):
 
 
 def strfdelta(tdelta, fmt):
+    """Formats a timedelta object as a string.
+
+    Parameters
+    ----------
+    tdelta : datetime.timedelta
+        Timedelta object to format.
+    fmt : str
+        Contains format calls to days, hours, minutes, and seconds.
+
+    Returns
+    -------
+    str
+        Right justified 2 spaces, filled with zeros.
+    """
+
     d = {"days": tdelta.days}
     d["hours"], rem = divmod(tdelta.seconds, 3600)
     d["minutes"], d["seconds"] = divmod(rem, 60)
@@ -145,8 +173,23 @@ def strfdelta(tdelta, fmt):
 # SPECIFIC FUNCTIONS (ALL BELOW)
 
 
-# Recursive walk finding all JPG images below home_path.
-def find_jpgs(dirpath=None):
+def find_jpgs(dirpath=None, img_type=(".jpg", ".jpeg")):
+    """Walks directory path, finding all files ending in .jpg or .jpeg.
+
+    Parameters
+    ----------
+    dirpath : str, optional
+        If no path provided, the user can navigate to it via tkinter window.
+    img_type : tuple, optional
+        By default, finds JPG image types, but can be changed if camera
+        exports a different filetype.
+
+    Returns
+    -------
+    list of dictionaries
+        Contains filenames and filepaths.
+    """
+
     if dirpath is None:
         dirpath = handle_tkinter("opendir")
 
@@ -157,7 +200,7 @@ def find_jpgs(dirpath=None):
             if "_selected" not in dir_:
                 found = (
                     f for f in files
-                    if f.upper().endswith((".JPG", ".JPEG"))
+                    if f.lower().endswith(img_type)
                 )
                 for filename in found:
                     filepath = os.path.join(dir_, filename)
@@ -173,9 +216,25 @@ def find_jpgs(dirpath=None):
         return []
 
 
-# Takes in filepaths, reads binary files, attaches EXIF data.
-# Can create custom tuples in tag_format to extract more data.
 def attach_exif(jpg_data, parse_tags=DEFAULT_PARSE):
+    """Loops through jpg_data, reading filepaths and attaching EXIF data.
+
+    Parameters
+    ----------
+    jpg_data : list of dictionaries
+        Requires that "filepath" is in dictionary keys, which is easily
+        provided by find_jpgs() prior to this function.
+    parse_tags : list of tuples, optional
+        By default, only Image DateTime is retrieved from EXIF data using
+        DEFAULT_PARSE. Examine DEFAULT_PARSE as an example parameter to
+        pass to attach_exif(), if more data is desired from EXIF tags.
+
+    Returns
+    -------
+    list of dictionaries
+        Same as jpg_data, but now with desired EXIF data attached.
+    """
+
     output = []
 
     for deep_row in jpg_data:
@@ -191,8 +250,10 @@ def attach_exif(jpg_data, parse_tags=DEFAULT_PARSE):
     return output
 
 
-# Quickly finds the median tone of a grayscale image.
 def hist_median(image):
+    """Quickly finds the median tone of a grayscale image.
+    """
+
     px_count = image.shape[0] * image.shape[1]
     hist = cv2.calcHist([image], [0], None, [256], [0, 256])
 
@@ -204,9 +265,26 @@ def hist_median(image):
             return i
 
 
-# Outputs a pair of tuples, ((to), (from)).
-# Useful for cloning out timestamps, aids in preprocessing.
-def generate_clone_tuples(clone_to, clone_from):
+def generate_clone_tuples(clone_to, fill_from):
+    """Loops through jpg_data, reading filepaths and attaching EXIF data.
+
+    Useful for cloning out timestamps, aids in histogram equalization.
+
+    Parameters
+    ----------
+    clone_to : tuple
+        Format is (y1, y2, x1, x2), just like slicing images as np.arrays.
+    fill_from : {"A", "B", "R", "L"}
+        Calls directional tuples from DIRECTION_MULTS to fill pixels within
+        the clone_to area. Neighboring pixels from "[A]bove," "[B]elow,"
+        "[R]ight," and "[L]eft" are used for filling the area.
+
+    Returns
+    -------
+    pair of tuples
+        Matches the format for the clone parameter in process_jpgs().
+    """
+
     clone_to = np.array(clone_to)
     mults = np.array(DIRECTION_MULTS[clone_from[0].upper()])
 
@@ -222,18 +300,52 @@ def generate_clone_tuples(clone_to, clone_from):
 
 
 def CROPPER(image, crop):
+    """Returns a cropped image.
+
+    Parameters
+    ----------
+    image : numpy.ndarray
+        Image array, typically from cv2.imread().
+    crop : tuple
+        Format is (y1, y2, x1, x2), just like slicing images as np.arrays.
+    """
+
     y1, y2, x1, x2 = crop
     return image[y1:y2, x1:x2]
 
 
-# Crop image, equalize histogram.
 def CROP_EQUALIZE(image, crop, clone=None):
+    """Returns a cropped image with an equalized histogram.
+
+    Parameters
+    ----------
+    image : numpy.ndarray
+        Image array, typically from cv2.imread().
+    crop : tuple
+        Format is (y1, y2, x1, x2), just like slicing images as np.arrays.
+    clone : pair of tuples, optional
+        Matches the format ((clone_to), (clone_from)). For simplicity,
+        use generate_clone_tuples() to generate this object.
+    """
+
     image = CROPPER(image, crop)
     return cv2.equalizeHist(image)
 
 
-# Crops, clone out timestamp, equalize.
 def CROP_CLONE_EQUALIZE(image, crop, clone):
+    """Returns a cropped image, with specified cloning and equalization.
+
+    Parameters
+    ----------
+    image : numpy.ndarray
+        Image array, typically from cv2.imread().
+    crop : tuple
+        Format is (y1, y2, x1, x2), just like slicing images as np.arrays.
+    clone : pair of tuples
+        Matches the format ((clone_to), (clone_from)). For simplicity,
+        use generate_clone_tuples() to generate this object.
+    """
+
     image = CROPPER(image, crop)
 
     (a, b, c, d), (e, f, g, h) = clone
@@ -247,6 +359,29 @@ def CROP_CLONE_EQUALIZE(image, crop, clone):
 
 # Bare-bones. Take difference, threshold, and sum the mask.
 def SIMPLE(curr, prev, threshold, ksize=None, min_area=None):
+    """Most basic frame differencing method.
+
+    Takes two images, then finds their absolute difference. A simple
+    threshold is called, the resulting white pixels are counted toward
+    response (movement). Very noisy, but fast.
+
+    Parameters
+    ----------
+    curr : numpy.ndarray
+        Image array, typically from cv2.imread(). One of the two images
+        for the absolute difference to be taken.
+    prev : numpy.ndarray
+        Like curr. The second image to be differenced.
+    threshold : int, in range(0, 256)
+        Parameter to be passed to the cv2.threshold() function.
+    ksize : int, unused
+        Used in the BLURRED() and CONTOURS() functions, but retained here to
+        shorten the process_jpgs() function.
+    min_area : int, unused
+        Only used in the CONTOURS() function, but retained here to shorten
+        the process_jpgs() function.
+    """
+
     difference = cv2.absdiff(curr, prev)
     _, mask = cv2.threshold(
         difference,
@@ -258,6 +393,30 @@ def SIMPLE(curr, prev, threshold, ksize=None, min_area=None):
 
 # Difference, blur (amount changes with ksize), mask and sum.
 def BLURRED(curr, prev, threshold, ksize=11, min_area=None):
+    """Useful, mid-grade frame differencing method.
+
+    Takes two images, then finds their absolute difference. Prior to
+    thresholding, the differenced image is blurred to reduce noise.
+    After thresholding, the resulting white pixels are counted toward
+    response (movement). Works decently, a little faster than COUNTOURS.
+
+    Parameters
+    ----------
+    curr : numpy.ndarray
+        Image array, typically from cv2.imread(). One of the two images
+        for the absolute difference to be taken.
+    prev : numpy.ndarray
+        Like curr. The second image to be differenced.
+    threshold : int, in range(0, 256)
+        Parameter to be passed to the cv2.threshold() function.
+    ksize : int
+        Parameter to be passed to the cv2.medianBlur() function.
+        Default is 11. Must be positive, odd number.
+    min_area : int, unused
+        Only used in the CONTOURS() function, but retained here to shorten
+        the process_jpgs() function.
+    """
+
     difference = cv2.absdiff(curr, prev)
     blurred = cv2.medianBlur(difference, ksize)
     _, mask = cv2.threshold(
@@ -270,6 +429,31 @@ def BLURRED(curr, prev, threshold, ksize=11, min_area=None):
 
 # Like BLURRED, but only sums drawn contours over given limit.
 def CONTOURS(curr, prev, threshold, ksize=11, min_area=100):
+    """Slower, but powerful frame differencing method.
+
+    Takes two images, then finds their absolute difference. Prior to
+    thresholding, the differenced image is blurred to reduce noise.
+    After thresholding, contours are drawn around the resulting white pixels.
+    If the contours are above the min_area parameter, they are counted as a
+    response (movement). Works very well, little noise; slower than others.
+
+    Parameters
+    ----------
+    curr : numpy.ndarray
+        Image array, typically from cv2.imread(). One of the two images
+        for the absolute difference to be taken.
+    prev : numpy.ndarray
+        Like curr. The second image to be differenced.
+    threshold : int, in range(0, 256)
+        Parameter to be passed to the cv2.threshold() function.
+    ksize : int
+        Parameter to be passed to the cv2.medianBlur() function.
+        Default is 11. Must be positive, odd number.
+    min_area : int
+        Minimum contour area to count as a response (movement). Default is
+        an area of 100 pixels. Larger numbers decreases sensitivity.
+    """
+
     difference = cv2.absdiff(curr, prev)
     blurred = cv2.medianBlur(difference, ksize)
 
@@ -295,16 +479,50 @@ def CONTOURS(curr, prev, threshold, ksize=11, min_area=100):
 # JPG PROCESSING
 
 
-# Requires data with filepaths.
-# Images may be cropped and cloned, depending on preprocess function.
-# Returns a count value after image pair is sent to method function.
-# If no crop specified, crop will equal dimensions of first photo.
 def process_jpgs(
     jpg_data,
     method=CONTOURS,
     crop=False, clone=False,
     threshold=False, ksize=11, min_area=100
 ):
+    """Generates a response (movement) metric between images.
+
+    Works hierarchically to preform image cropping, cloning, and histogram
+    equalization on images read from jpg_data filepaths before being passed
+    on to frame differencing methods that generate a response metric.
+
+    This is the last step before the jpg_data list can be fed into the
+    Cam() class for response filtering.
+
+    Parameters
+    ----------
+    jpg_data : list of dictionaries
+        Requires that "filepath" is in dictionary keys, which is easily
+        provided by find_jpgs() prior to this function.
+    method : function, {SIMPLE, BLURRED, COUNTOURS}
+        Determines the frame differencing method to use. Ordered from
+        left to right based on increasing accuracy, decreasing speed.
+    crop : tuple
+        Format is (y1, y2, x1, x2), just like slicing images as np.arrays.
+    clone : pair of tuples
+        Matches the format ((clone_to), (clone_from)). For simplicity,
+        use generate_clone_tuples() to generate this object.
+    threshold : int, in range(0, 256)
+        Parameter to be passed to the cv2.threshold() function.
+    ksize : int
+        Parameter to be passed to the cv2.medianBlur() function.
+        Default is 11. Must be positive, odd number.
+    min_area : int
+        Minimum contour area to count as a response (movement). Default is
+        an area of 100 pixels. Larger numbers decreases sensitivity.
+
+    Returns
+    -------
+    list of dictionaries
+        Same as incoming jpg_data, but now with the median image tone and
+        a count variable, which respresents how many pixels have changed
+        between a photo and its previous, after preprocessing / thresholding.
+    """
 
     if not threshold:
         thresh_init = False
@@ -324,7 +542,6 @@ def process_jpgs(
             h, w = jpg.shape
             if not crop:
                 crop = (0, h, 0, w)
-            px_count = h*w
             prev = preprocess(jpg, crop, clone)
         elif i % timer[0] == 0:
             progress = i * 10 // timer[0]
@@ -371,21 +588,46 @@ def process_jpgs(
     return output
 
 
-# All necessary steps to enter data into Cam object.
 def construct_jpg_data(
     dirpath=None,
     parse_tags=DEFAULT_PARSE,
-    sort_key=lambda x: x['datetime'],
+    sort_key=SORT_BY_DT,
     process_options={}
 ):
-    print("Navigate to image folder.")
+    """Performs all necessary steps to make jpg_data feedable to Cam().
+
+    Parameters
+    ----------
+    dirpath : str, optional
+        If no path provided, the user can navigate to it via tkinter window.
+    parse_tags : list of tuples, optional
+        By default, only Image DateTime is retrieved from EXIF data using
+        DEFAULT_PARSE. Examine DEFAULT_PARSE as an example parameter to
+        pass to attach_exif(), if more data is desired from EXIF tags.
+    sort_key : function, optional
+        By default, dictionaries within the jpg_data list are sorted by
+        their "Image DateTime" EXIF tag. This can be changed if images don"t
+        have a datetime, but do have a variable for sequence.
+    process_options : dictionary, optional
+        Passes along paramters to the process_jpgs() function. By default,
+        no options are specified. Make sure that this parameter is mappable.
+
+    Returns
+    -------
+    list of dictionaries
+        Each row contains everything that"s needed to feed a Cam() object
+        with its initial data.
+    """
+
+    if dirpath is None:
+        print("Navigate to image folder.")
     jpg_paths = find_jpgs(dirpath)
-    print("All images found.")
+    print(f"{len(jpg_paths)} images found.")
     jpg_data = attach_exif(jpg_paths, parse_tags)
     jpg_data.sort(key=sort_key)
     print("Started processing...")
     output = process_jpgs(jpg_data, **process_options)
-    print(f"Done! {len(output)} images found.")
+    print("Done!")
     return output
 
 
@@ -395,16 +637,61 @@ def construct_jpg_data(
 # Requires data from process_jpg(). Object essentially holds data
 # used in exporting, parameters for graphing, and plot function.
 class Cam():
+    """
+    A class used to store, plot, filter, and export image data.
+
+    Contains the heart of this module, the interactive plot() method.
+    A simply initialization could be: Cam(construct_jpg_data()). After
+    filtering images with the plot, save() and export() should be called
+    so as not to lose any prior work.
+
+    Attributes
+    ----------
+    jpg_data : list of dictionaries
+        Similar to what is inputted, but includes variables denoting
+        selection, edits, event, etc.
+    plot_params : dictionary
+        Parameters used in the plot() method. To reset these values, re-
+        assign DEFAULT_PLOT_PARAMS to this attribute.
+
+    Methods
+    -------
+    attach_diffs(var, new_var)
+        Finds the difference between the current and previous items.
+    export(path=False)
+        Exports selected images and a .csv file.
+    load(path=False)
+        Loads a .sav file.
+    mark_edits(i)
+        Marks which photos have been edited.
+    plot()
+        Interactive plot used to select images for export.
+    save(path=False)
+        Dumps a JSON object as a .sav file.
+    update_counts()
+        Updates jpg_data attribute with new counts.
+    update_events()
+        Updates jpg_data attribute with new events.
+    update_recent_folder(path)
+        Provides Tkinter calls with the last used path.
+    """
+
     def __init__(self, jpg_data=False, resp_var="count"):
+        """
+        Parameters
+        ----------
+        jpg_data : list of dictionaries, optional
+            Typically requires the output of process_jpgs(). Can be omitted
+            if a empty Cam() object is desired for a load() method call.
+        resp_var : str, optional
+            A key found in jpg_data, typically the "count" variable is used
+            as a response, but alternatives like "median" can be used to plot
+            jpgs without processing them first.
+        """
+
         self.resp_var = resp_var
 
-        self.plot_params = {
-            "ceiling": 40000,
-            "resp_thresh": 20000,
-            "trans_thresh": 30,
-            "smooth_time": 1,
-            "night_mult": 0
-        }
+        self.plot_params = DEFAULT_PLOT_PARAMS
 
         self.lines = {}
         self.sliders = {}
@@ -417,7 +704,7 @@ class Cam():
 
         self.recent_folder = os.path.expanduser("~")
 
-        # Cam objects don't need to have data to initialize.
+        # Cam objects don"t need to have data to initialize.
         # This way, someone can load() older, processed data.
         if jpg_data:
             self.jpg_data = list(jpg_data)
@@ -452,15 +739,19 @@ class Cam():
                         row["timedelta"].total_seconds() / 60, 2
                     )
 
-    # Helps Tkinter initialize at last used path.
     def update_recent_folder(self, path):
+        """Provides Tkinter calls with the last used path.
+        """
+
         if os.path.isfile(path):
             self.recent_folder = os.path.dirname(path)
         else:
             self.recent_folder = path
 
-    # Dump a JSON object with jpg_data, plot_params, and user_edits.
     def save(self, path=False):
+        """Dumps a JSON object with jpg_data, plot_params, and user_edits.
+        """
+
         if path:
             filename = path
         else:
@@ -488,8 +779,10 @@ class Cam():
         else:
             print("NO SAVE FILEPATH SPECIFIED!")
 
-    # Loads a .sav file, the plot will be identical to what is saved.
     def load(self, path=False):
+        """Loads a .sav file, the Cam() object is now identical to the last.
+        """
+
         if path:
             filename = path
         else:
@@ -523,9 +816,10 @@ class Cam():
         else:
             print("NO LOAD FILEPATH SPECIFIED!")
 
-    # Any images selected in the plot are exported to a given folder.
-    # JPG_data associated with selected images are written to .dat file.
     def export(self, path=False):
+        """Exports selected images and a .csv file to specified directory.
+        """
+
         if path:
             directory = path
         else:
@@ -561,27 +855,36 @@ class Cam():
         else:
             print("NO EXPORT DIRECTORY SPECIFIED!")
 
-    # Finds the difference between the current and previous variable.
     def attach_diffs(self, var, new_var):
+        """Finds the difference between the current and previous variable.
+
+        Requires a list of dictionaries.
+        """
+
         prev = self.jpg_data[0][var]
         for row in self.jpg_data:
             curr = row[var]
             row[new_var] = curr - prev
             prev = curr
 
-    # Marks which photos to label as edited based on index.
     def mark_edits(self, i):
+        """Marks which photos to label as edited based on [i]ndex.
+        """
+
         if i == 0:
             self.jpg_data[i]["edited"] = True
         else:
             self.jpg_data[i-1]["edited"] = True
             self.jpg_data[i]["edited"] = True
 
-    # A new_count is generated, modifying the count variable.
-    # Day to night transitions are filtered (slider val).
-    # Counts associated with night are multiplied (slider val).
-    # User edits are applied.
     def update_counts(self):
+        """Updates jpg_data with new counts (response metric).
+
+        Variable new_count is attached to jpg_data. Day to night transitions
+        are filtered out based on slider. Counts taken at with nighttime are
+        multiplied based on slider. Manual user edits are applied.
+        """
+
         for i, row in enumerate(self.jpg_data):
             row["edited"] = False
             new_count = row["count"]
@@ -600,10 +903,14 @@ class Cam():
             self.jpg_data[i]["new_count"] = shift
             self.mark_edits(i)
 
-    # An event is a contiguous sequence of images.
-    # First images are identified as being selected or not.
-    # Then, events are lumped based on time since last image (slider val).
     def update_events(self):
+        """Updates jpg_data with new events (runs of detection).
+
+        An event is a contiguous sequence of images. First, images are
+        identified as being selected or not. Then, events are lumped based
+        on time since last image (SMOOTH slider value).
+        """
+
         prev = self.jpg_data[0]
         for i, curr in enumerate(self.jpg_data):
             prev["selected"] = (
@@ -660,11 +967,18 @@ class Cam():
             for i in master_set:
                 self.jpg_data[i]["selected"] = True
 
-    def quick_guide(self):
-        print(GUIDE)
-
-    # Interactive plot for selected desired images.
     def plot(self):
+        """Interactive plot used to select images for export.
+
+        QUICK GUIDE:
+           c - Hold to VIEW IMAGES in gallery.
+           x - Hold and release to INCREASE response value to 1e5.
+           z - Hold and release to DECREASE response value to -1.
+           , - Hold and release to REMOVE EDITS.
+           . - Press to RESET ALL EDITS.
+           v - Press for EQUALIZED image (for dark images).
+        """
+
         try:
             self.jpg_data
         except AttributeError as inst:
@@ -841,18 +1155,18 @@ class Cam():
         cv2.destroyAllWindows()
 
 
-if __name__ == "__main__" and False:
+if __name__ == "__main__":
     print("1) Please navigate to folder with camera-trapping images.")
     jpg_paths = find_jpgs()
 
     jpg_data = attach_exif(jpg_paths)
-    jpg_data.sort(key=lambda x: x['datetime'])
+    jpg_data.sort(key=lambda x: x["datetime"])
 
     print("2) Images are being processed.")
     processed_data = process_jpgs(jpg_data)
 
     for row in processed_data:
-        del row['datetime']
+        del row["datetime"]
 
     if type(processed_data) is not tuple:
         cam = Cam(processed_data)
@@ -861,7 +1175,7 @@ if __name__ == "__main__" and False:
         cam.save()
 
         print("4) Use the interactive plot to select images for export.")
-        cam.quick_guide()
+        print(GUIDE)
         cam.plot()
 
         print("5) Save once again, so changes are recorded.")
