@@ -727,18 +727,22 @@ class Cam():
             write_data = []
 
             for i, row in enumerate(self.jpg_data):
+                write_row = row.copy()
                 if row["selected"]:
-                    write_data.append(row.copy())
                     if self.dt_present:
                         dt_ISO = dt.strftime(
                             row["datetime"], "%Y%m%dT%H%M%S"
                         )
                     else:
                         dt_ISO = str(i)
-                    new_path = os.path.join(
-                        directory, "_".join((dt_ISO, row["filename"]))
-                    )
+                    new_name = "_".join((dt_ISO, row["filename"]))
+                    new_path = os.path.join(directory, new_name)
+
+                    write_row["new_name"] = new_name
+                    write_row["new_path"] = new_path
+
                     shutil.copy2(row["filepath"], new_path)
+                    write_data.append(write_row)
             if write_data:
                 with open(os.path.join(directory, "_export.csv"), "w") as f:
                     variables = sorted(write_data[0].keys())
@@ -1062,9 +1066,6 @@ if __name__ == "__main__":
 
     print("2) Images are being processed.")
     processed_data = process_jpgs(jpg_data)
-
-    for row in processed_data:
-        del row["datetime"]
 
     if type(processed_data) is not tuple:
         cam = Cam(processed_data)
