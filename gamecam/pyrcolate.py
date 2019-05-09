@@ -985,7 +985,7 @@ class Cam():
             ("RESP", 0.08, 0, CEIL_X, self.plt_vals["resp_thresh"], "%i"),
             ("TRANS", 0.06, 0, 120, self.plt_vals["trans_thresh"], "%1.1f"),
             ("SMOOTH", 0.04, 0, 10, self.plt_vals["smooth_time"], "%1.1f"),
-            ("NIGHT", 0.02, -50, 50, self.plt_vals["night_mult"], "%i")
+            ("NIGHT", 0.02, -1, 50, self.plt_vals["night_mult"], "%i")
         ]
 
         def update():
