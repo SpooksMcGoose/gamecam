@@ -29,17 +29,7 @@ root.withdraw()
 
 # CONSTANTS
 
-
-GUIDE = "\n".join((
-    "QUICK GUIDE:",
-    "   c - Hold to VIEW IMAGES in gallery.",
-    "   x - Hold and release to INCREASE response value to 1e5.",
-    "   z - Hold and release to DECREASE response value to -1.",
-    "   , - Hold and release to REMOVE EDITS.",
-    "   . - Press to RESET ALL EDITS.",
-    "   v - Press for EQUALIZED image (for dark images)."
-))
-
+UPPER_BOUND = 1e9
 
 def PARSE_DT(raw):
     """Default parser for EXIF "Image DateTime" tag.
@@ -691,7 +681,7 @@ class Cam():
 
         self.resp_var = resp_var
 
-        self.plot_params = DEFAULT_PLOT_PARAMS
+        self.plt_vals = DEFAULT_PLOT_PARAMS
 
         self.lines = {}
         self.sliders = {}
@@ -715,10 +705,10 @@ class Cam():
             for row in self.jpg_data:
                 row["count"] = row[self.resp_var]
 
-            self.plot_params["ceiling"] = np.percentile(
+            self.plt_vals["ceiling"] = np.percentile(
                 extract_var(self.jpg_data, "count"), 80
             )
-            self.plot_params["resp_thresh"] = self.plot_params["ceiling"] / 2
+            self.plt_vals["resp_thresh"] = self.plt_vals["ceiling"] / 2
 
             self.attach_diffs("median", "med_diff")
 
@@ -772,7 +762,7 @@ class Cam():
                     row["selected"] = int(row["selected"])
 
             with open(filename, "w") as f:
-                f.write(json.dumps(self.plot_params) + "\n")
+                f.write(json.dumps(self.plt_vals) + "\n")
                 f.write(json.dumps(temp_data) + "\n")
                 f.write(json.dumps(self.user_edits))
             self.update_recent_folder(filename)
@@ -790,7 +780,7 @@ class Cam():
         self.update_recent_folder(filename)
         if filename:
             with open(filename, "r") as f:
-                self.plot_params = json.loads(next(f))
+                self.plt_vals = json.loads(next(f))
                 temp_data = json.loads(next(f))
                 temp_dict = json.loads(next(f))
 
@@ -894,12 +884,12 @@ class Cam():
         for i, row in enumerate(self.jpg_data):
             row["edited"] = False
             new_count = row["count"]
-            if row["med_diff"] > self.plot_params["trans_thresh"]:
+            if row["med_diff"] > self.plt_vals["trans_thresh"]:
                 new_count = 0
                 self.mark_edits(i)
             if self.dt_present:
                 new_count *= 1 + (
-                    self.plot_params["night_mult"]
+                    self.plt_vals["night_mult"]
                     / (1 + 150**(row["from_midnight"]-4.5))
                 )
 
@@ -920,13 +910,13 @@ class Cam():
         prev = self.jpg_data[0]
         for i, curr in enumerate(self.jpg_data):
             prev["selected"] = (
-                prev["new_count"] > self.plot_params["resp_thresh"]
-                or curr["new_count"] > self.plot_params["resp_thresh"]
+                prev["new_count"] > self.plt_vals["resp_thresh"]
+                or curr["new_count"] > self.plt_vals["resp_thresh"]
             )
 
             if i == self.length-1:
                 curr["selected"] = (
-                    curr["new_count"] > self.plot_params["resp_thresh"]
+                    curr["new_count"] > self.plt_vals["resp_thresh"]
                 )
             prev = curr
 
@@ -944,16 +934,16 @@ class Cam():
                         if move == 1:
                             curr["selected"] = (
                                 curr["td_minutes"]
-                                <= self.plot_params["smooth_time"]
+                                <= self.plt_vals["smooth_time"]
                             )
                         elif move == -1:
                             curr["selected"] = (
                                 prev["td_minutes"]
-                                <= self.plot_params["smooth_time"]
+                                <= self.plt_vals["smooth_time"]
                             )
                     prev = curr
         else:
-            nudge = int(self.plot_params["smooth_time"])
+            nudge = int(self.plt_vals["smooth_time"])
             master_set = set()
             for i, row in enumerate(self.jpg_data):
                 if row["selected"]:
@@ -978,8 +968,8 @@ class Cam():
 
         QUICK GUIDE:
            c - Hold to VIEW IMAGES in gallery.
-           x - Hold and release to INCREASE response value to 1e5.
-           z - Hold and release to DECREASE response value to -1.
+           x - Hold and release to INCREASE response value to Inf.
+           z - Hold and release to DECREASE response value to 0.
            , - Hold and release to REMOVE EDITS.
            . - Press to RESET ALL EDITS.
            v - Press for EQUALIZED image (for dark images).
@@ -990,12 +980,12 @@ class Cam():
         except AttributeError as inst:
             raise inst
 
-        CEIL_X = self.plot_params["ceiling"]*1.5
+        CEIL_X = self.plt_vals["ceiling"]*1.5
         SLIDER_PARAMS = [
-            ("RESP", 0.08, CEIL_X, self.plot_params["resp_thresh"], "%i"),
-            ("TRANS", 0.06, 120, self.plot_params["trans_thresh"], "%1.1f"),
-            ("SMOOTH", 0.04, 10, self.plot_params["smooth_time"], "%1.1f"),
-            ("NIGHT", 0.02, 50, self.plot_params["night_mult"], "%i")
+            ("RESP", 0.08, 0, CEIL_X, self.plt_vals["resp_thresh"], "%i"),
+            ("TRANS", 0.06, 0, 120, self.plt_vals["trans_thresh"], "%1.1f"),
+            ("SMOOTH", 0.04, 0, 10, self.plt_vals["smooth_time"], "%1.1f"),
+            ("NIGHT", 0.02, -50, 50, self.plt_vals["night_mult"], "%i")
         ]
 
         def update():
@@ -1007,16 +997,15 @@ class Cam():
             for name in self.lines.keys():
                 self.lines[name].remove()
 
-            CEIL_X = self.plot_params["ceiling"]*1.5
             np_counts = np.array(extract_var(self.jpg_data, "new_count"))
 
             self.lines["edited"] = ax.fill_between(
-                np.arange(0, self.length) + 0.5, 0, CEIL_X,
+                np.arange(0, self.length) + 0.5, 0, UPPER_BOUND,
                 where=extract_var(self.jpg_data, "edited"),
                 facecolor="#D8BFAA", alpha=0.5
             )
             self.lines["selected"] = ax.fill_between(
-                np.arange(0, self.length) + 0.5, 0, CEIL_X,
+                np.arange(0, self.length) + 0.5, 0, UPPER_BOUND,
                 where=extract_var(self.jpg_data, "selected"),
                 facecolor="#F00314"
             )
@@ -1025,16 +1014,16 @@ class Cam():
                 facecolor="black"
             )
             self.lines["threshold"] = ax.axhline(
-                self.plot_params["resp_thresh"], color="#14B37D"
+                self.plt_vals["resp_thresh"], color="#14B37D"
             )
 
             fig.canvas.draw_idle()
 
         def on_slide(val):
-            for key in self.plot_params.keys():
+            for key in self.plt_vals.keys():
                 if key != "ceiling":
                     slider_key = key[:key.find("_")].upper()
-                    self.plot_params[key] = self.sliders[slider_key].val
+                    self.plt_vals[key] = self.sliders[slider_key].val
             update()
 
         # Displays last two and next two images from response spike.
@@ -1069,7 +1058,7 @@ class Cam():
 
             min_y = min(img.shape[0] for img in stack)
 
-            pano = np.hstack((img[:min_y, :] for img in stack))
+            pano = np.hstack([img[:min_y, :] for img in stack])
             h, w, *_ = pano.shape
 
             cv2.namedWindow("Gallery", cv2.WINDOW_NORMAL)
@@ -1086,7 +1075,7 @@ class Cam():
                     if event.key == "z":
                         self.press = [-1, i]
                     elif event.key == "x":
-                        self.press = [1e5, i]
+                        self.press = [UPPER_BOUND, i]
                     elif event.key == ",":
                         self.press = [0, i]
                 if event.key in "zxc,":
@@ -1124,7 +1113,7 @@ class Cam():
 
         ax.grid(alpha=0.4)
         ax.set_axisbelow(True)
-        ax.set_ylim([0, self.plot_params["ceiling"]])
+        ax.set_ylim([0, self.plt_vals["ceiling"]])
         ax.set_xlim([0, min(500, self.length)])
 
         ax.set_xlabel("Frame")
@@ -1134,10 +1123,10 @@ class Cam():
         for name in ("count", "threshold", "selected", "edited"):
             self.lines[name] = ax.axhline()
 
-        for name, pos, max_val, init, fmt in SLIDER_PARAMS:
+        for name, pos, minv, maxv, init, fmt in SLIDER_PARAMS:
             slider_ax = fig.add_axes([0.125, pos, 0.8, 0.02])
             self.sliders[name] = Slider(
-                slider_ax, name, 0, max_val,
+                slider_ax, name, minv, maxv,
                 valinit=init, valfmt=fmt, color="#003459", alpha=0.5
             )
             self.sliders[name].on_changed(on_slide)
@@ -1148,7 +1137,7 @@ class Cam():
 
         try:
             ax.fill_between(
-                np.arange(0, self.length) + 0.5, 0, CEIL_X,
+                np.arange(0, self.length) + 0.5, 0, UPPER_BOUND,
                 where=[x["from_midnight"] < 4.5 for x in self.jpg_data],
                 facecolor="#003459", alpha=0.5
             )
@@ -1178,7 +1167,7 @@ if __name__ == "__main__":
         cam.save()
 
         print("4) Use the interactive plot to select images for export.")
-        print(GUIDE)
+        help(Cam.plot)
         cam.plot()
 
         print("5) Save once again, so changes are recorded.")
