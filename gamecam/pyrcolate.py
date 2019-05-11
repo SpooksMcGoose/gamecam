@@ -29,7 +29,9 @@ root.withdraw()
 
 # CONSTANTS
 
-UPPER_BOUND = 1e9
+BIG_NUMBER = int(1e9)
+
+RESP_NUM = 3.5
 
 def PARSE_DT(raw):
     """Default parser for EXIF "Image DateTime" tag.
@@ -530,6 +532,7 @@ def process_jpgs(
         if i == 0:
             jpg = cv2.imread(row["filepath"], 0)
             h, w = jpg.shape
+            row["shape"] = jpg.shape
             if not crop:
                 crop = (0, h, 0, w)
             prev = preprocess(jpg, crop, clone)
@@ -705,10 +708,12 @@ class Cam():
             for row in self.jpg_data:
                 row["count"] = row[self.resp_var]
 
-            self.plt_vals["ceiling"] = np.percentile(
-                extract_var(self.jpg_data, "count"), 80
+            h, w, *_ = cv2.imread(jpg_data[0]["filepath"]).shape
+
+            self.plt_vals["ceiling"] = h * w * 0.02
+            self.plt_vals["resp_thresh"] = (
+                (self.plt_vals["ceiling"] / 2) ** (1 / RESP_NUM)
             )
-            self.plt_vals["resp_thresh"] = self.plt_vals["ceiling"] / 2
 
             self.attach_diffs("median", "med_diff")
 
@@ -980,12 +985,11 @@ class Cam():
         except AttributeError as inst:
             raise inst
 
-        CEIL_X = self.plt_vals["ceiling"]*1.5
         SLIDER_PARAMS = [
-            ("RESP", 0.08, 0, CEIL_X, self.plt_vals["resp_thresh"], "%i"),
-            ("TRANS", 0.06, 0, 120, self.plt_vals["trans_thresh"], "%1.1f"),
-            ("SMOOTH", 0.04, 0, 10, self.plt_vals["smooth_time"], "%1.1f"),
-            ("NIGHT", 0.02, -1, 50, self.plt_vals["night_mult"], "%i")
+            ("RESP", 0.08, 0, 100, self.plt_vals["resp_thresh"], "%.2e"),
+            ("TRANS", 0.06, 0, 120, self.plt_vals["trans_thresh"], "%.1f"),
+            ("SMOOTH", 0.04, 0, 10, self.plt_vals["smooth_time"], "%.1f"),
+            ("NIGHT", 0.02, -1, 50, self.plt_vals["night_mult"], "%.1f")
         ]
 
         def update():
@@ -1000,12 +1004,12 @@ class Cam():
             np_counts = np.array(extract_var(self.jpg_data, "new_count"))
 
             self.lines["edited"] = ax.fill_between(
-                np.arange(0, self.length) + 0.5, 0, UPPER_BOUND,
+                np.arange(0, self.length) + 0.5, 0, BIG_NUMBER,
                 where=extract_var(self.jpg_data, "edited"),
                 facecolor="#D8BFAA", alpha=0.5
             )
             self.lines["selected"] = ax.fill_between(
-                np.arange(0, self.length) + 0.5, 0, UPPER_BOUND,
+                np.arange(0, self.length) + 0.5, 0, BIG_NUMBER,
                 where=extract_var(self.jpg_data, "selected"),
                 facecolor="#F00314"
             )
@@ -1023,7 +1027,12 @@ class Cam():
             for key in self.plt_vals.keys():
                 if key != "ceiling":
                     slider_key = key[:key.find("_")].upper()
-                    self.plt_vals[key] = self.sliders[slider_key].val
+                    if key == "resp_thresh":
+                        mod = self.sliders[slider_key].val ** RESP_NUM
+                        self.plt_vals[key] = mod
+                        self.sliders[slider_key].valtext.set_text("%.2e" % mod)
+                    else:
+                        self.plt_vals[key] = self.sliders[slider_key].val
             update()
 
         # Displays last two and next two images from response spike.
@@ -1075,7 +1084,7 @@ class Cam():
                     if event.key == "z":
                         self.press = [-1, i]
                     elif event.key == "x":
-                        self.press = [UPPER_BOUND, i]
+                        self.press = [BIG_NUMBER, i]
                     elif event.key == ",":
                         self.press = [0, i]
                 if event.key in "zxc,":
@@ -1137,14 +1146,14 @@ class Cam():
 
         try:
             ax.fill_between(
-                np.arange(0, self.length) + 0.5, 0, UPPER_BOUND,
+                np.arange(0, self.length) + 0.5, 0, BIG_NUMBER,
                 where=[x["from_midnight"] < 4.5 for x in self.jpg_data],
                 facecolor="#003459", alpha=0.5
             )
         except KeyError:
             pass
 
-        update()
+        on_slide(1)
         plt.show()
 
         cv2.destroyAllWindows()
