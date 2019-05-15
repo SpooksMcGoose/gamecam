@@ -885,7 +885,7 @@ class Cam():
             row[new_var] = curr - prev
             prev = curr
 
-    def mark_edits(self, i, shift):
+    def mark_edits(self, i):
         """Marks which photos to label as edited based on [i]ndex.
         """
 
@@ -931,13 +931,11 @@ class Cam():
         for i, curr in enumerate(self.jpg_data):
             prev["selected"] = (
                 prev["new_count"] > self.plt_vals["resp_thresh"]
-                or curr["new_count"] > self.plt_vals["resp_thresh"]
-            )
+                or curr["new_count"] > self.plt_vals["resp_thresh"])
 
             if i == self.length-1:
                 curr["selected"] = (
-                    curr["new_count"] > self.plt_vals["resp_thresh"]
-                )
+                    curr["new_count"] > self.plt_vals["resp_thresh"])
             prev = curr
 
         if self.dt_present:
