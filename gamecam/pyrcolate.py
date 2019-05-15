@@ -13,7 +13,8 @@ from sklearn.cluster import KMeans
 from datetime import datetime as dt, timedelta as td
 
 from matplotlib import pyplot as plt
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Slider, RectangleSelector
+import matplotlib.gridspec as gridspec
 
 try:
     import tkinter as tk
@@ -69,8 +70,18 @@ DIRECTION_MULTS = {
     "L": (0, 0, -1, -1)
 }
 
+RS_PARAMS = {
+    "drawtype": 'box', "useblit": True, "button": [1, 3], "minspanx": 5,
+    "minspany": 5, "spancoords": "pixels", "interactive": True
+}
+
 
 # GENERAL FUNCTIONS
+
+
+class Mem():
+    def __init__(self):
+        pass
 
 
 def handle_tkinter(mode, init=None):
@@ -286,13 +297,13 @@ def generate_clone_tuples(clone_to, fill_from):
     """
 
     clone_to = np.array(clone_to)
-    mults = np.array(DIRECTION_MULTS[clone_from[0].upper()])
+    mults = np.array(DIRECTION_MULTS[fill_from[0].upper()])
 
     a, b, c, d = clone_to
     h, w = b - a, d - c
     h_or_w = np.array([h, h, w, w])
 
-    clone_from = clone_to + (h_or_w*mults)
+    clone_from = clone_to + (h_or_w * mults)
     return (tuple(clone_to), tuple(clone_from))
 
 
@@ -346,12 +357,141 @@ def CROP_CLONE_EQUALIZE(image, crop, clone):
         use generate_clone_tuples() to generate this object.
     """
 
-    image = CROPPER(image, crop)
-
     (a, b, c, d), (e, f, g, h) = clone
     image[a:b, c:d] = image[e:f, g:h]
 
+    image = CROPPER(image, crop)
     return cv2.equalizeHist(image)
+
+
+def crop_clone_preview(image):
+    """Interactive viewer to quickly get crop and clone parameters.
+
+    Parameters
+    ----------
+    image : numpy.ndarray
+        Image array, typically from cv2.imread().
+
+    Returns
+    -------
+    tuple
+        Format is (crop, clone_to, clone_directs). The crop_tuple
+        variable can be fed directly into process_jpgs(). Then, use
+        "generate_clone_tuples(clone_to, directs[0])" to get the clone
+        parameter, or any other direction in the directs list (they've all
+        been checked for bounds, unlike generate_clone_tuples).
+    """
+
+    mem = Mem()
+    mem.crop_tuple = False
+    mem.clone_tuple = False
+    mem.clone_directs = False
+
+    def update(event):
+        if crop_RS.active:
+            crop_RS.update()
+        if clone_RS.active:
+            clone_RS.update()
+
+    def safe_corners(geometry):
+        min_y = max(0, min(geometry[0, :]))
+        max_y = min(H, max(geometry[0, :]))
+        min_x = max(0, min(geometry[1, :]))
+        max_x = min(W, max(geometry[1, :]))
+
+        ignore = (min_y > H or max_y < 0 or min_x > W or max_x < 0)
+        return tuple(map(
+            lambda x: int(round(x)), (min_y, max_y, min_x, max_x))), ignore
+
+    def RS_event(eclick, erelease):
+        x1, y1 = eclick.xdata, eclick.ydata
+        x2, y2 = erelease.xdata, erelease.ydata
+
+        cr_corn, cr_ig = safe_corners(crop_RS.geometry)
+        cl_corn, cl_ig = safe_corners(clone_RS.geometry)
+
+        mod = image.copy()
+
+        if not cl_ig:
+            mem.clone_tuple = cl_corn
+
+            trials = []
+            for direct in ("A", "B", "R", "L"):
+                tups = generate_clone_tuples(cl_corn, direct)
+                a, b, c, d = tups[1]
+                if not (a < 0 or b > H or c < 0 or d > W):
+                    trials.append((tups, direct))
+
+            choose = []
+            for (tups, direct) in trials:
+                test = image.copy()
+
+                (a, b, c, d), (e, f, g, h) = tups
+                test[a:b, c:d] = test[e:f, g:h]
+
+                diff = cv2.absdiff(test, image)
+                choose.append((sum(cv2.sumElems(diff)), direct, test))
+            choose.sort()
+
+            if choose:
+                metrics, directs, imgs = list(zip(*choose))
+                mem.clone_directs = directs
+                mod = imgs[0]
+
+            del choose
+        else:
+            mem.clone_tuple = False            
+            mem.clone_directs = False            
+
+        if cr_ig:
+            cr_corn = (0, H, 0, W)
+            mem.crop_tuple = False
+        else:
+            mem.crop_tuple = cr_corn
+
+        y1, y2, x1, x2 = cr_corn
+        mod = mod[y1:y2, x1:x2]
+
+        mod = cv2.cvtColor(mod, cv2.COLOR_BGR2RGB)
+        ax_mod.imshow(mod)
+
+    rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    H, W, *_ = image.shape
+    scale = 10
+    lo_W, hi_W = (0 - W // scale), (W + W // scale)
+    lo_H, hi_H = (0 - H // scale), (H + H // scale)
+
+    gs = gridspec.GridSpec(2, 2, height_ratios=[1, 1.25])
+
+    fig = plt.figure()
+    ax_crop = fig.add_subplot(gs[0, 0])
+    ax_clone = fig.add_subplot(gs[0, 1])
+    ax_mod = fig.add_subplot(gs[1, :])
+
+    crop_RS = RectangleSelector(
+        ax_crop, RS_event, **RS_PARAMS)
+    clone_RS = RectangleSelector(
+        ax_clone, RS_event, **RS_PARAMS)
+
+    ax_crop.set_title("Crop")
+    ax_clone.set_title("Clone")
+    ax_mod.set_title("Result")
+
+    for axe in (ax_crop, ax_clone):
+        axe.set_xticklabels([])
+        axe.set_yticklabels([])
+        axe.set_xlim(lo_W, hi_W)
+        axe.set_ylim(hi_H, lo_H)
+
+    ax_crop.imshow(rgb)
+    ax_clone.imshow(rgb)
+    ax_mod.imshow(rgb)
+
+    plt.connect('draw_event', update)
+    plt.show()
+
+    return mem.crop_tuple, mem.clone_tuple, mem.clone_directs
 
 
 # FRAME DIFFERENCING METHODS
@@ -529,7 +669,7 @@ def process_jpgs(
 
     output = []
 
-    timer = (len(jpg_data)-1 // 10, time.time())
+    timer = (len(jpg_data) // 10, time.time())
     for i, deep_row in enumerate(jpg_data):
         row = deep_row.copy()
         if i == 0:
@@ -1152,27 +1292,36 @@ class Cam():
 
 
 if __name__ == "__main__" and 1:
-    print("1) Please navigate to folder with camera-trapping images.")
+    print("→ Please navigate to folder with camera-trapping images.")
     jpg_paths = find_imgs()
 
     jpg_data = attach_exif(jpg_paths)
     jpg_data.sort(key=lambda x: x["datetime"])
 
-    print("2) Images are being processed.")
-    processed_data = process_jpgs(jpg_data)
+    print("→ Crop and clone out any timestamps from images.")
+    crop, clone_to, directs = crop_clone_preview(
+        jpg_data[len(jpg_data) // 2]["filepath"])
+
+    if clone_to:
+        clone = generate_clone_tuples(clone_to, directs[0])
+    else:
+        clone = False
+
+    print("→ Images are being processed.")
+    processed_data = process_jpgs(jpg_data, crop=crop, clone=clone)
 
     if type(processed_data) is not tuple:
         cam = Cam(processed_data)
 
-        print("3) Please choose a location for an initial save.")
+        print("→ Please choose a location for an initial save.")
         cam.save()
 
-        print("4) Use the interactive plot to select images for export.")
+        print("→ Use the interactive plot to select images for export.")
         help(Cam.plot)
         cam.plot()
 
-        print("5) Save once again, so changes are recorded.")
+        print("→ Save once again, so changes are recorded.")
         cam.save()
 
-        print("6) Finally, choose a location for export.")
+        print("→ Finally, choose a location for export.")
         cam.export()
