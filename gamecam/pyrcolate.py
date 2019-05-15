@@ -1300,7 +1300,7 @@ if __name__ == "__main__" and 1:
 
     print("→ Crop and clone out any timestamps from images.")
     crop, clone_to, directs = crop_clone_preview(
-        jpg_data[len(jpg_data) // 2]["filepath"])
+        cv2.imread(jpg_data[len(jpg_data) // 2]["filepath"]))
 
     if clone_to:
         clone = generate_clone_tuples(clone_to, directs[0])
