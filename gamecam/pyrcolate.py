@@ -101,19 +101,16 @@ def handle_tkinter(mode, init=None):
     if mode == "savefile":
         output = filedialog.asksaveasfilename(
             initialdir=init,
-            filetypes=(("Save files", "*.sav"), ("All files", "*.*"))
-        )
+            filetypes=(("Save files", "*.sav"), ("All files", "*.*")))
     elif mode == "openfile":
         output = filedialog.askopenfilename(
             initialdir=init,
             title="Select file",
-            filetypes=(("Save files", "*.sav"), ("All files", "*.*"))
-        )
+            filetypes=(("Save files", "*.sav"), ("All files", "*.*")))
     elif mode == "opendir":
         output = filedialog.askdirectory(
             initialdir=init,
-            title="Select folder",
-        )
+            title="Select folder")
 
     root.update()
     root.destroy()
@@ -389,8 +386,7 @@ def SIMPLE(curr, prev, threshold, ksize=None, min_area=None):
     _, mask = cv2.threshold(
         difference,
         threshold, 255,
-        cv2.THRESH_BINARY
-    )
+        cv2.THRESH_BINARY)
     return cv2.countNonZero(mask)
 
 
@@ -425,8 +421,7 @@ def BLURRED(curr, prev, threshold, ksize=11, min_area=None):
     _, mask = cv2.threshold(
         blurred,
         threshold, 255,
-        cv2.THRESH_BINARY
-    )
+        cv2.THRESH_BINARY)
     return cv2.countNonZero(mask)
 
 
@@ -463,12 +458,10 @@ def CONTOURS(curr, prev, threshold, ksize=11, min_area=100):
     _, mask = cv2.threshold(
         blurred,
         threshold, 255,
-        cv2.THRESH_BINARY
-    )
+        cv2.THRESH_BINARY)
 
     contours, _ = cv2.findContours(
-        mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
-        )[-2:]
+        mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2:]
 
     count = 0
     for cnt in contours:
@@ -486,8 +479,7 @@ def process_jpgs(
     jpg_data,
     method=CONTOURS,
     crop=False, clone=False,
-    threshold=False, ksize=11, min_area=100
-):
+    threshold=False, ksize=11, min_area=100):
     """Generates a response (movement) metric between images.
 
     Works hierarchically to preform image cropping, cloning, and histogram
@@ -537,7 +529,7 @@ def process_jpgs(
 
     output = []
 
-    timer = (len(jpg_data) // 10, time.time())
+    timer = (len(jpg_data)-1 // 10, time.time())
     for i, deep_row in enumerate(jpg_data):
         row = deep_row.copy()
         if i == 0:
@@ -550,14 +542,9 @@ def process_jpgs(
             progress = i * 10 // timer[0]
             elapsed = time.time() - timer[1]
             total = elapsed / (progress / 100)
-            remain = strfdelta(
-                td(seconds=total - elapsed),
-                "{days}:{hours}:{minutes}:{seconds}"
-            )
-            print(
-                f"{progress}% done. "
-                f"{remain} left."
-            )
+            remain = strfdelta(td(seconds=total - elapsed),
+                               "{days}:{hours}:{minutes}:{seconds}")
+            print(f"{progress}% done. {remain} left.")
 
         jpg = cv2.imread(row["filepath"], 0)
         curr = preprocess(jpg, crop, clone)
@@ -576,12 +563,10 @@ def process_jpgs(
                 (a, b), (c, d) = curr.shape[:2], prev.shape[:2]
                 h, w = min(a, c), min(b, d)
                 tup = (0, h, 0, w)
-                print(
-                    "FUNCTION ABORTED!\n"
-                    "Not all images are of same size, "
-                    "consider using the crop parameter.\n"
-                    f"Try crop={tup}."
-                )
+                print("FUNCTION ABORTED!\n"
+                      "Not all images are of same size, "
+                      "consider using the crop parameter.\n"
+                      f"Try crop={tup}.")
                 return tup
             else:
                 print(inst)
@@ -596,8 +581,7 @@ def construct_jpg_data(
     dirpath=None,
     parse_tags=DEFAULT_PARSE,
     sort_key=SORT_BY_DT,
-    process_options={}
-):
+    process_options={}):
     """Performs all necessary steps to make jpg_data feedable to Cam().
 
     Parameters
@@ -723,8 +707,7 @@ class Cam():
 
             self.plt_vals["ceiling"] = h * w * 0.02
             self.plt_vals["resp_thresh"] = (
-                (self.plt_vals["ceiling"] / 2) ** (1 / RESP_NUM)
-            )
+                (self.plt_vals["ceiling"] / 2) ** (1 / RESP_NUM))
 
             self.attach_diffs("median", "med_diff")
 
@@ -773,13 +756,11 @@ class Cam():
         if filename:
             temp_data = [
                 {k: v for k, v in row.items()}
-                for row in self.jpg_data
-            ]
+                for row in self.jpg_data]
             for row in temp_data:
                 if "datetime" in row.keys():
                     row["datetime"] = dt.strftime(
-                        row["datetime"], "%Y-%m-%d %H:%M:%S"
-                    )
+                        row["datetime"], "%Y-%m-%d %H:%M:%S")
                 if "timedelta" in row.keys():
                     row["timedelta"] = row["timedelta"].total_seconds()
                 if "selected" in row.keys():
@@ -805,6 +786,8 @@ class Cam():
         if filename:
             with open(filename, "r") as f:
                 self.plt_vals = json.loads(next(f))
+                self.plt_vals["resp_thresh"] = (
+                    self.plt_vals["resp_thresh"] ** (1 / RESP_NUM))
                 temp_data = json.loads(next(f))
                 temp_dict = json.loads(next(f))
 
@@ -947,7 +930,6 @@ class Cam():
                 is_neg = move < 0
                 prev = self.jpg_data[-is_neg]
                 for i in range(-is_neg, (self.length * move) - is_neg, move):
-                    # print((move, i, self.length-abs(i)))
                     curr = self.jpg_data[i]
                     boo = (not curr["selected"] and prev["selected"]
                            and not (prev["user_edit"] and curr["user_edit"]))
@@ -1020,20 +1002,15 @@ class Cam():
                 np.arange(0, self.length) + 0.5, -BIG_NUM, BIG_NUM,
                 where=[r["trans_edit"] or r["user_edit"]
                        for r in self.jpg_data],
-                facecolor="#D8BFAA", alpha=0.5
-            )
+                facecolor="#D8BFAA", alpha=0.5)
             self.lines["selected"] = ax.fill_between(
                 np.arange(0, self.length) + 0.5, -BIG_NUM, BIG_NUM,
                 where=extract_var(self.jpg_data, "selected"),
-                facecolor="#F00314"
-            )
+                facecolor="#F00314")
             self.lines["count"] = ax.fill_between(
-                range(self.length), 0, np_counts,
-                facecolor="black"
-            )
+                range(self.length), 0, np_counts, facecolor="black")
             self.lines["threshold"] = ax.axhline(
-                self.plt_vals["resp_thresh"], color="#14B37D"
-            )
+                self.plt_vals["resp_thresh"], color="#14B37D")
 
             fig.canvas.draw_idle()
 
@@ -1150,8 +1127,7 @@ class Cam():
             slider_ax = fig.add_axes([0.125, pos, 0.8, 0.02])
             self.sliders[name] = Slider(
                 slider_ax, name, minv, maxv,
-                valinit=init, valfmt=fmt, color="#003459", alpha=0.5
-            )
+                valinit=init, valfmt=fmt, color="#003459", alpha=0.5)
             self.sliders[name].on_changed(on_slide)
 
         fig.canvas.mpl_connect("key_press_event", on_key)
@@ -1160,7 +1136,7 @@ class Cam():
 
         ax.fill_between(
             np.arange(0, self.length) + 0.5, -BIG_NUM, 0,
-            facecolor="white", alpha=0.65, zorder=2)
+            facecolor="white", alpha=0.75, zorder=2)
         try:
             ax.fill_between(
                 np.arange(0, self.length) + 0.5, -BIG_NUM, BIG_NUM,
