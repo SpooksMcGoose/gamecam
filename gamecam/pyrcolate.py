@@ -31,6 +31,7 @@ root.withdraw()
 # CONSTANTS
 
 BIG_NUM = int(1e9)
+NEG_NUM = -0.1
 
 RESP_NUM = 3.5
 
@@ -730,7 +731,8 @@ class Cam():
             for row in self.jpg_data:
                 row["med_diff"] = abs(row["med_diff"])
                 row["selected"] = False
-                row["edited"] = False
+                row["user_edit"] = False
+                row["trans_edit"] = False
 
             if self.dt_present:
                 self.attach_diffs("datetime", "timedelta")
@@ -885,15 +887,15 @@ class Cam():
             row[new_var] = curr - prev
             prev = curr
 
-    def mark_edits(self, i):
+    def mark_edits(self, i, kind):
         """Marks which photos to label as edited based on [i]ndex.
         """
 
         if i == 0:
-            self.jpg_data[i]["edited"] = True
+            self.jpg_data[i][kind] = True
         else:
-            self.jpg_data[i-1]["edited"] = True
-            self.jpg_data[i]["edited"] = True
+            self.jpg_data[i][kind] = True
+            self.jpg_data[i-1][kind] = True
 
     def update_counts(self):
         """Updates jpg_data with new counts (response metric).
@@ -904,11 +906,13 @@ class Cam():
         """
 
         for i, row in enumerate(self.jpg_data):
-            row["edited"] = False
+            row["user_edit"] = False
+            row["trans_edit"] = False
+
             new_count = row["count"]
             if row["med_diff"] > self.plt_vals["trans_thresh"]:
                 new_count = 0
-                self.mark_edits(i)
+                self.mark_edits(i, "trans_edit")
             if self.dt_present:
                 new_count *= 1 + (
                     self.plt_vals["night_mult"] * row["is_night"])
@@ -917,7 +921,7 @@ class Cam():
 
         for i, shift in self.user_edits.items():
             self.jpg_data[i]["new_count"] = shift
-            self.mark_edits(i)
+            self.mark_edits(i, "user_edit")
 
     def update_events(self):
         """Updates jpg_data with new events (runs of detection).
@@ -945,9 +949,8 @@ class Cam():
                 for i in range(-is_neg, (self.length * move) - is_neg, move):
                     # print((move, i, self.length-abs(i)))
                     curr = self.jpg_data[i]
-                    boo = (not curr["selected"]
-                           and prev["selected"]
-                           and curr["new_count"] >= 0)
+                    boo = (not curr["selected"] and prev["selected"]
+                           and not (prev["user_edit"] and curr["user_edit"]))
                     if boo:
                         if not is_neg:
                             lapse = curr["td_minutes"]
@@ -1015,7 +1018,8 @@ class Cam():
 
             self.lines["edited"] = ax.fill_between(
                 np.arange(0, self.length) + 0.5, -BIG_NUM, BIG_NUM,
-                where=extract_var(self.jpg_data, "edited"),
+                where=[r["trans_edit"] or r["user_edit"]
+                       for r in self.jpg_data],
                 facecolor="#D8BFAA", alpha=0.5
             )
             self.lines["selected"] = ax.fill_between(
@@ -1092,7 +1096,7 @@ class Cam():
                 if self.press[0] is None:
                     i = int(round(event.xdata))
                     if event.key == "z":
-                        self.press = [-1, i]
+                        self.press = [NEG_NUM, i]
                     elif event.key == "x":
                         self.press = [BIG_NUM, i]
                     elif event.key == ",":
@@ -1156,7 +1160,7 @@ class Cam():
 
         ax.fill_between(
             np.arange(0, self.length) + 0.5, -BIG_NUM, 0,
-            facecolor="white", alpha=0.75, zorder=2)
+            facecolor="white", alpha=0.65, zorder=2)
         try:
             ax.fill_between(
                 np.arange(0, self.length) + 0.5, -BIG_NUM, BIG_NUM,
