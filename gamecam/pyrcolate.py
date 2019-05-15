@@ -31,9 +31,9 @@ root.withdraw()
 # CONSTANTS
 
 BIG_NUM = int(1e9)
-NEG_NUM = int(-1e3)
 
 RESP_NUM = 3.5
+
 
 def PARSE_DT(raw):
     """Default parser for EXIF "Image DateTime" tag.
@@ -118,6 +118,14 @@ def handle_tkinter(mode, init=None):
     root.destroy()
 
     return output
+
+
+def csv_safe(obj):
+    """Puts quotes around strings with commas in them.
+    """
+
+    string = str(obj)
+    return '"' + string + '"' if "," in string else string
 
 
 def to_24_hour(datetime):
@@ -534,7 +542,6 @@ def process_jpgs(
         if i == 0:
             jpg = cv2.imread(row["filepath"], 0)
             h, w = jpg.shape
-            row["shape"] = jpg.shape
             if not crop:
                 crop = (0, h, 0, w)
             prev = preprocess(jpg, crop, clone)
@@ -554,6 +561,7 @@ def process_jpgs(
         jpg = cv2.imread(row["filepath"], 0)
         curr = preprocess(jpg, crop, clone)
 
+        row["shape"] = jpg.shape
         row["median"] = hist_median(jpg)
         row["post-median"] = hist_median(curr)
 
@@ -859,7 +867,7 @@ class Cam():
                             f.write("\n")
                         else:
                             f.write(",".join(variables) + "\n")
-                        f.write(",".join(str(row[v]) for v in variables))
+                        f.write(",".join(csv_safe(row[v]) for v in variables))
             else:
                 print("NO IMAGES SELECTED FOR EXPORT!")
         else:
@@ -877,7 +885,7 @@ class Cam():
             row[new_var] = curr - prev
             prev = curr
 
-    def mark_edits(self, i):
+    def mark_edits(self, i, shift):
         """Marks which photos to label as edited based on [i]ndex.
         """
 
@@ -934,25 +942,22 @@ class Cam():
 
         if self.dt_present:
             for move in (1, -1):
-                prev = self.jpg_data[-(move < 0)]
-                for i in range(0, self.length*move, move):
+                is_neg = move < 0
+                prev = self.jpg_data[-is_neg]
+                for i in range(-is_neg, (self.length * move) - is_neg, move):
+                    # print((move, i, self.length-abs(i)))
                     curr = self.jpg_data[i]
-                    boo = (
-                        not curr["selected"]
-                        and prev["selected"]
-                        and curr["new_count"] >= 0
-                    )
+                    boo = (not curr["selected"]
+                           and prev["selected"]
+                           and curr["new_count"] >= 0)
                     if boo:
-                        if move == 1:
-                            curr["selected"] = (
-                                curr["td_minutes"]
-                                <= self.plt_vals["smooth_time"]
-                            )
-                        elif move == -1:
-                            curr["selected"] = (
-                                prev["td_minutes"]
-                                <= self.plt_vals["smooth_time"]
-                            )
+                        if not is_neg:
+                            lapse = curr["td_minutes"]
+                        else:
+                            lapse = prev["td_minutes"]
+
+                        curr["selected"] = (
+                            lapse <= self.plt_vals["smooth_time"])
                     prev = curr
         else:
             nudge = int(self.plt_vals["smooth_time"])
