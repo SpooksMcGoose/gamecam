@@ -9,6 +9,7 @@ import cv2
 import exifread as er
 import numpy as np
 
+from sklearn.cluster import KMeans
 from datetime import datetime as dt, timedelta as td
 
 from matplotlib import pyplot as plt
@@ -29,7 +30,8 @@ root.withdraw()
 
 # CONSTANTS
 
-BIG_NUMBER = int(1e9)
+BIG_NUM = int(1e9)
+NEG_NUM = int(-1e3)
 
 RESP_NUM = 3.5
 
@@ -550,10 +552,10 @@ def process_jpgs(
             )
 
         jpg = cv2.imread(row["filepath"], 0)
+        curr = preprocess(jpg, crop, clone)
 
         row["median"] = hist_median(jpg)
-
-        curr = preprocess(jpg, crop, clone)
+        row["post-median"] = hist_median(curr)
 
         if not thresh_init:
             threshold = row["median"]*1.05
@@ -725,14 +727,21 @@ class Cam():
             if self.dt_present:
                 self.attach_diffs("datetime", "timedelta")
                 for row in self.jpg_data:
-                    hour = to_24_hour(row["datetime"])
-                    row["from_midnight"] = (
-                        hour if hour < 12
-                        else (hour - 24) * -1
-                    )
+                    row["24hr"] = to_24_hour(row["datetime"])
                     row["td_minutes"] = round(
-                        row["timedelta"].total_seconds() / 60, 2
-                    )
+                        row["timedelta"].total_seconds() / 60, 2)
+
+                day_hr = extract_var(self.jpg_data, "24hr")
+                meds = extract_var(self.jpg_data, "median")
+
+                X = np.array(day_hr).reshape(-1, 1)
+                kmeans = KMeans(n_clusters=3).fit(X)
+
+                night_indices = [np.argmin(kmeans.cluster_centers_),
+                                 np.argmax(kmeans.cluster_centers_)]
+
+                for n, index in enumerate(kmeans.labels_):
+                    self.jpg_data[n]["is_night"] = index in night_indices
 
     def update_recent_folder(self, path):
         """Provides Tkinter calls with the last used path.
@@ -894,9 +903,7 @@ class Cam():
                 self.mark_edits(i)
             if self.dt_present:
                 new_count *= 1 + (
-                    self.plt_vals["night_mult"]
-                    / (1 + 150**(row["from_midnight"]-4.5))
-                )
+                    self.plt_vals["night_mult"] * row["is_night"])
 
             row["new_count"] = new_count
 
@@ -1004,12 +1011,12 @@ class Cam():
             np_counts = np.array(extract_var(self.jpg_data, "new_count"))
 
             self.lines["edited"] = ax.fill_between(
-                np.arange(0, self.length) + 0.5, 0, BIG_NUMBER,
+                np.arange(0, self.length) + 0.5, -BIG_NUM, BIG_NUM,
                 where=extract_var(self.jpg_data, "edited"),
                 facecolor="#D8BFAA", alpha=0.5
             )
             self.lines["selected"] = ax.fill_between(
-                np.arange(0, self.length) + 0.5, 0, BIG_NUMBER,
+                np.arange(0, self.length) + 0.5, -BIG_NUM, BIG_NUM,
                 where=extract_var(self.jpg_data, "selected"),
                 facecolor="#F00314"
             )
@@ -1084,7 +1091,7 @@ class Cam():
                     if event.key == "z":
                         self.press = [-1, i]
                     elif event.key == "x":
-                        self.press = [BIG_NUMBER, i]
+                        self.press = [BIG_NUM, i]
                     elif event.key == ",":
                         self.press = [0, i]
                 if event.key in "zxc,":
@@ -1144,12 +1151,14 @@ class Cam():
         fig.canvas.mpl_connect("key_release_event", off_key)
         fig.canvas.mpl_connect("button_press_event", on_click)
 
+        ax.fill_between(
+            np.arange(0, self.length) + 0.5, -BIG_NUM, 0,
+            facecolor="white", alpha=0.75, zorder=2)
         try:
             ax.fill_between(
-                np.arange(0, self.length) + 0.5, 0, BIG_NUMBER,
-                where=[x["from_midnight"] < 4.5 for x in self.jpg_data],
-                facecolor="#003459", alpha=0.5
-            )
+                np.arange(0, self.length) + 0.5, -BIG_NUM, BIG_NUM,
+                where=extract_var(self.jpg_data, "is_night"),
+                facecolor="#003459", alpha=0.5)
         except KeyError:
             pass
 
@@ -1159,7 +1168,7 @@ class Cam():
         cv2.destroyAllWindows()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and 1:
     print("1) Please navigate to folder with camera-trapping images.")
     jpg_paths = find_imgs()
 
