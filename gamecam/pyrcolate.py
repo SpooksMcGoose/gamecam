@@ -70,6 +70,13 @@ DIRECTION_MULTS = {
     "L": (0, 0, -1, -1)
 }
 
+COL_ORDER = [
+    "old_name", "old_path", "filename", "filepath", "shape",
+    "datetime", "24hr", "is_night", "timedelta", "td_minutes",
+    "median", "med_diff", "count", "new_count",
+    "selected", "user_edit", "trans_edit"
+]
+
 RS_PARAMS = {
     "drawtype": 'box', "useblit": True, "button": [1, 3], "minspanx": 5,
     "minspany": 5, "spancoords": "pixels", "interactive": True
@@ -82,6 +89,13 @@ RS_PARAMS = {
 class Mem():
     def __init__(self):
         pass
+
+
+def sort_cols(var_name):
+    if var_name in COL_ORDER:
+        return COL_ORDER.index(var_name)
+    else:
+        return BIG_NUM
 
 
 def handle_tkinter(mode, init=None):
@@ -691,7 +705,6 @@ def process_jpgs(
 
         row["shape"] = jpg.shape
         row["median"] = hist_median(jpg)
-        row["post-median"] = hist_median(curr)
 
         if not thresh_init:
             threshold = row["median"]*1.05
@@ -986,7 +999,8 @@ class Cam():
                     write_data.append(write_row)
             if write_data:
                 with open(os.path.join(directory, "_export.csv"), "w") as f:
-                    variables = sorted(write_data[0].keys())
+                    variables = sorted(write_data[0].keys(),
+                                       key=sort_cols)
                     for i, row in enumerate(write_data):
                         if i != 0:
                             f.write("\n")
