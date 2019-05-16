@@ -454,8 +454,8 @@ def crop_clone_preview(image):
 
             del choose
         else:
-            mem.clone_tuple = False            
-            mem.clone_directs = False            
+            mem.clone_tuple = False
+            mem.clone_directs = False
 
         if cr_ig:
             cr_corn = (0, H, 0, W)
@@ -633,7 +633,8 @@ def process_jpgs(
     jpg_data,
     method=CONTOURS,
     crop=False, clone=False,
-    threshold=False, ksize=11, min_area=100):
+    threshold=False, ksize=11, min_area=100
+):
     """Generates a response (movement) metric between images.
 
     Works hierarchically to preform image cropping, cloning, and histogram
@@ -734,7 +735,8 @@ def construct_jpg_data(
     dirpath=None,
     parse_tags=DEFAULT_PARSE,
     sort_key=SORT_BY_DT,
-    process_options={}):
+    process_options={}
+):
     """Performs all necessary steps to make jpg_data feedable to Cam().
 
     Parameters
