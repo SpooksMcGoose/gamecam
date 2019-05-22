@@ -191,7 +191,7 @@ def strfdelta(tdelta, fmt):
     d["minutes"], d["seconds"] = divmod(rem, 60)
     for k, v in d.items():
         if k != "days":
-            d[k] = str(d[k]).rjust(2, "0")
+            d[k] = str(v).rjust(2, "0")
     return fmt.format(**d)
 
 
@@ -221,7 +221,7 @@ def find_imgs(dirpath=None, img_type=(".jpg", ".jpeg")):
     if dirpath:
         output = []
 
-        for dir_, subdir, files in os.walk(dirpath):
+        for dir_, _, files in os.walk(dirpath):
             if "_selected" not in dir_:
                 found = (
                     f for f in files
@@ -448,7 +448,7 @@ def crop_clone_preview(image):
             choose.sort()
 
             if choose:
-                metrics, directs, imgs = list(zip(*choose))
+                _, directs, imgs = list(zip(*choose))
                 mem.clone_directs = directs
                 mod = imgs[0]
 
@@ -880,7 +880,7 @@ class Cam():
                         row["timedelta"].total_seconds() / 60, 2)
 
                 day_hr = extract_var(self.jpg_data, "24hr")
-                meds = extract_var(self.jpg_data, "median")
+                # meds = extract_var(self.jpg_data, "median")
 
                 X = np.array(day_hr).reshape(-1, 1)
                 kmeans = KMeans(n_clusters=3).fit(X)
@@ -1073,8 +1073,8 @@ class Cam():
         prev = self.jpg_data[0]
         for i, curr in enumerate(self.jpg_data):
             prev["selected"] = (
-                prev["new_count"] > self.plt_vals["resp_thresh"]
-                or curr["new_count"] > self.plt_vals["resp_thresh"])
+                prev["new_count"] > self.plt_vals["resp_thresh"] or
+                curr["new_count"] > self.plt_vals["resp_thresh"])
 
             if i == self.length-1:
                 curr["selected"] = (
@@ -1087,8 +1087,8 @@ class Cam():
                 prev = self.jpg_data[-is_neg]
                 for i in range(-is_neg, (self.length * move) - is_neg, move):
                     curr = self.jpg_data[i]
-                    boo = (not curr["selected"] and prev["selected"]
-                           and not (prev["user_edit"] and curr["user_edit"]))
+                    boo = (not curr["selected"] and prev["selected"] and
+                           not (prev["user_edit"] and curr["user_edit"]))
                     if boo:
                         if not is_neg:
                             lapse = curr["td_minutes"]

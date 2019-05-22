@@ -53,11 +53,11 @@ class Navbar(tk.Frame):
         self.HOME_DIR = os.path.expanduser("~")
 
         self.combo = ttk.Combobox(self.parent)
-        self.combo['values']= (240, 480, 600, 768, 1024)
+        self.combo['values'] = (240, 480, 600, 768, 1024)
         self.combo.current(0)
-        #self.combo.pack(side="bottom")
+        # self.combo.pack(side="bottom")
 
-        #self.combo.bind("<<ComboboxSelected>>", self.combo_updated)
+        # self.combo.bind("<<ComboboxSelected>>", self.combo_updated)
 
     def combo_updated(self, event):
         self.parent.main.update()
@@ -81,7 +81,7 @@ class Main(tk.Frame):
     def update(self):
         self.index = min(len(self.image_paths) - 1, max(0, self.index))
         max_size = max(100, self.winfo_width() // 2)
-            
+
         im_paths = (self.image_paths[self.index+i] for i in range(2))
         im_pil = (Image.open(fp) for fp in im_paths)
         im_resize = (pil_resize(max_size, im) for im in im_pil)
@@ -121,7 +121,7 @@ class MainApplication(tk.Frame):
 
     def get_dir(self):
         output = filedialog.askopenfilenames(
-            initialdir=self.HOME_DIR ,
+            initialdir=self.HOME_DIR,
             title="Choose files to view",
         )
         return output
