@@ -5,11 +5,11 @@ with open("README.md", "r") as f:
 
 setuptools.setup(
     name="gamecam-sdrabing",
-    version="0.6.2",
+    version="0.7.0",
     author="Shane Drabing",
     author_email="shane.drabing@gmail.com",
     packages=setuptools.find_packages(),
-    url="https://github.com/SpooksMcGoose/gamecam",
+    url="https://github.com/shanedrabing/gamecam",
     description="Remote-camera software suite.",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -22,6 +22,7 @@ setuptools.setup(
         ("", ["LICENSE.txt"])
     ],
     install_requires=[
-        "opencv-python", "ExifRead", "numpy", "matplotlib"
+        "opencv-python", "ExifRead", "numpy", "matplotlib",
+        "Pillow", "scikit-learn"
     ]
 )

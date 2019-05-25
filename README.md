@@ -1,5 +1,5 @@
 # gamecam
-Filter out trail camera images that don't contain an animal (eventually will be able to label exported images as well).
+Filter out trail-camera images that don't contain an animal (eventually will be able to label exported images as well).
 
 ## Motivation
 While working for the [Francis Ecology Lab](https://francisecologylab.wixsite.com/francislab), a problem was presented to me. In 2018, there were 800,000+ remote camera images collected for a single experiment. The majority turned out to be false triggers - photos of grass and bushes swaying.
@@ -10,7 +10,7 @@ Instead of going through them one by one, I developed this program. Once coded, 
 Use the package manager [pip](https://pip.pypa.io/en/stable/) to install gamecam.
 
 ```bash
-pip install gamecam
+pip install gamecam-sdrabing
 ```
 
 ## Usage

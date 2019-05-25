@@ -768,6 +768,13 @@ def construct_jpg_data(
     print(f"{len(jpg_paths)} images found.")
     jpg_data = attach_exif(jpg_paths, parse_tags)
     jpg_data.sort(key=sort_key)
+    if process_options == {}:
+        print("Crop and clone image as desired.")
+        crop, clone_to, directs = crop_clone_preview(
+            cv2.imread(jpg_data[len(jpg_data) // 2]["filepath"]))
+        clone = (generate_clone_tuples(clone_to, directs[0]) if clone_to
+                 else False)
+        process_options = {"crop": crop, "clone": clone}
     print("Started processing...")
     output = process_jpgs(jpg_data, **process_options)
     print("Done!")
@@ -1317,11 +1324,7 @@ if __name__ == "__main__" and 1:
     print("→ Crop and clone out any timestamps from images.")
     crop, clone_to, directs = crop_clone_preview(
         cv2.imread(jpg_data[len(jpg_data) // 2]["filepath"]))
-
-    if clone_to:
-        clone = generate_clone_tuples(clone_to, directs[0])
-    else:
-        clone = False
+    clone = generate_clone_tuples(clone_to, directs[0]) if clone_to else False
 
     print("→ Images are being processed.")
     processed_data = process_jpgs(jpg_data, crop=crop, clone=clone)
