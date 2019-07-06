@@ -17,14 +17,16 @@ pip install gamecam-sdrabing
 ```python
 from gamecam import pyrcolate as pyr
 
-jpg_data = pyr.construct_jpg_data() # creates data table from folder
+# creates data table from folder
+jpg_data = pyr.construct_jpg_data(pyr.input_directory())
 
-cam = pyr.Cam(jpg_data) # Cam objects store all relevant metadata
+# Cam objects store all relevant metadata
+cam = pyr.Cam(jpg_data)
 
-help(Cam.plot)    # shows quick-guide for plot key bindings
-cam.plot()        # interactive plot for image filtering
-cam.save()        # creates a .sav file that can be loaded
-cam.export()      # images and .csv file are exported to folder
+help(Cam.plot)                     # shows quick-guide for key bindings
+cam.plot()                         # interactive plot for image filtering
+cam.save(pyr.input_filename())     # creates a .sav file that can be loaded
+cam.export(pyr.input_directory())  # exports images and a .csv file to folder
 ```
 
 ## To-Do
