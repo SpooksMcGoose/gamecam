@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setuptools.setup(
     name="gamecam-sdrabing",
-    version="0.7.1",
+    version="0.8.0",
     author="Shane Drabing",
     author_email="shane.drabing@gmail.com",
     packages=setuptools.find_packages(),
@@ -22,7 +22,6 @@ setuptools.setup(
         ("", ["LICENSE.txt"])
     ],
     install_requires=[
-        "opencv-python", "ExifRead", "numpy", "matplotlib",
-        "Pillow", "scikit-learn"
+        "opencv-python", "ExifRead", "numpy", "matplotlib", "scikit-learn"
     ]
 )

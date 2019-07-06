@@ -16,18 +16,6 @@ from matplotlib import pyplot as plt
 from matplotlib.widgets import Slider, RectangleSelector
 import matplotlib.gridspec as gridspec
 
-try:
-    import tkinter as tk
-    from tkinter import filedialog
-except ImportError:
-    import Tkinter as tk
-    from Tkinter import filedialog
-
-# Work-around for a weird tkinter / matplotlib interaction.
-# Note: I would use TkAgg backend, but key bouncing breaks the plot.
-root = tk.Tk()
-root.withdraw()
-
 
 # CONSTANTS
 
@@ -98,49 +86,23 @@ def sort_cols(var_name):
         return BIG_NUM
 
 
-def handle_tkinter(mode, init=None):
-    """Used for making basic Tkinter dialog calls.
+def input_filename():
+    while True:
+        filename = input("> ")
+        try:
+            with open(filename, 'w') as _:
+                return filename
+        except OSError:
+            print("File already exists or is invalid, try again.")
 
-    For some reason, Tkinter doesn"t like to be used within a class,
-    so this is here instead.
 
-    Parameters
-    ----------
-    mode : {"savefile", "openfile", "opendir"}
-        Type of file dialog to call.
-    init : str, optional
-        Starting path for file dialog.
-
-    Returns
-    -------
-    str
-        User-selected path name from file dialog.
-    """
-
-    root = tk.Tk()
-    root.withdraw()
-
-    if init is None:
-        init = os.path.expanduser("~")
-
-    if mode == "savefile":
-        output = filedialog.asksaveasfilename(
-            initialdir=init,
-            filetypes=(("Save files", "*.sav"), ("All files", "*.*")))
-    elif mode == "openfile":
-        output = filedialog.askopenfilename(
-            initialdir=init,
-            title="Select file",
-            filetypes=(("Save files", "*.sav"), ("All files", "*.*")))
-    elif mode == "opendir":
-        output = filedialog.askdirectory(
-            initialdir=init,
-            title="Select folder")
-
-    root.update()
-    root.destroy()
-
-    return output
+def input_directory():
+    while True:
+        directory = input("> ")
+        if os.path.isdir(directory):
+            return directory
+        else:
+            print("Invalid directory path, try again.")
 
 
 def csv_safe(obj):
@@ -198,13 +160,13 @@ def strfdelta(tdelta, fmt):
 # SPECIFIC FUNCTIONS (ALL BELOW)
 
 
-def find_imgs(dirpath=None, img_type=(".jpg", ".jpeg")):
+def find_imgs(dirpath, img_type=(".jpg", ".jpeg")):
     """Walks directory path, finding all files ending in img_type.
 
     Parameters
     ----------
-    dirpath : str, optional
-        If no path provided, the user can navigate to it via tkinter window.
+    dirpath : str
+        Path to an image-containing directory.
     img_type : tuple, optional
         By default, finds JPG image types, but can be changed if camera
         exports a different filetype.
@@ -215,30 +177,23 @@ def find_imgs(dirpath=None, img_type=(".jpg", ".jpeg")):
         Contains filenames and filepaths.
     """
 
-    if dirpath is None:
-        dirpath = handle_tkinter("opendir")
+    output = []
 
-    if dirpath:
-        output = []
+    for dir_, _, files in os.walk(dirpath):
+        if "_selected" not in dir_:
+            found = (
+                f for f in files
+                if f.lower().endswith(img_type)
+            )
+            for filename in found:
+                filepath = os.path.join(dir_, filename)
 
-        for dir_, _, files in os.walk(dirpath):
-            if "_selected" not in dir_:
-                found = (
-                    f for f in files
-                    if f.lower().endswith(img_type)
-                )
-                for filename in found:
-                    filepath = os.path.join(dir_, filename)
+                output.append({
+                    "filename": filename,
+                    "filepath": filepath
+                })
 
-                    output.append({
-                        "filename": filename,
-                        "filepath": filepath
-                    })
-
-        return output
-    else:
-        print("NO IMAGE DIRECTORY SPECIFIED!")
-        return []
+    return output
 
 
 def attach_exif(jpg_data, parse_tags=DEFAULT_PARSE):
@@ -732,7 +687,7 @@ def process_jpgs(
 
 
 def construct_jpg_data(
-    dirpath=None,
+    dirpath,
     parse_tags=DEFAULT_PARSE,
     sort_key=SORT_BY_DT,
     process_options={}
@@ -741,8 +696,8 @@ def construct_jpg_data(
 
     Parameters
     ----------
-    dirpath : str, optional
-        If no path provided, the user can navigate to it via tkinter window.
+    dirpath : str
+        Path to an image-containing directory.
     parse_tags : list of tuples, optional
         By default, only Image DateTime is retrieved from EXIF data using
         DEFAULT_PARSE. Examine DEFAULT_PARSE as an example parameter to
@@ -762,8 +717,6 @@ def construct_jpg_data(
         with its initial data.
     """
 
-    if dirpath is None:
-        print("Navigate to image folder.")
     jpg_paths = find_imgs(dirpath)
     print(f"{len(jpg_paths)} images found.")
     jpg_data = attach_exif(jpg_paths, parse_tags)
@@ -808,22 +761,20 @@ class Cam():
     -------
     attach_diffs(var, new_var)
         Finds the difference between the current and previous items.
-    export(path=False)
+    export(directory)
         Exports selected images and a .csv file.
-    load(path=False)
+    load(filename)
         Loads a .sav file.
     mark_edits(i)
         Marks which photos have been edited.
     plot()
         Interactive plot used to select images for export.
-    save(path=False)
+    save(filename)
         Dumps a JSON object as a .sav file.
     update_counts()
         Updates jpg_data attribute with new counts.
     update_events()
         Updates jpg_data attribute with new events.
-    update_recent_folder(path)
-        Provides Tkinter calls with the last used path.
     """
 
     def __init__(self, jpg_data=False, resp_var="count"):
@@ -898,128 +849,95 @@ class Cam():
                 for n, index in enumerate(kmeans.labels_):
                     self.jpg_data[n]["is_night"] = index in night_indices
 
-    def update_recent_folder(self, path):
-        """Provides Tkinter calls with the last used path.
-        """
-
-        if os.path.isfile(path):
-            self.recent_folder = os.path.dirname(path)
-        else:
-            self.recent_folder = path
-
-    def save(self, path=False):
+    def save(self, filename):
         """Dumps a JSON object with jpg_data, plot_params, and user_edits.
         """
 
-        if path:
-            filename = path
-        else:
-            filename = handle_tkinter("savefile", self.recent_folder)
-        if filename:
-            temp_data = [
-                {k: v for k, v in row.items()}
-                for row in self.jpg_data]
-            for row in temp_data:
-                if "datetime" in row.keys():
-                    row["datetime"] = dt.strftime(
-                        row["datetime"], "%Y-%m-%d %H:%M:%S")
-                if "timedelta" in row.keys():
-                    row["timedelta"] = row["timedelta"].total_seconds()
-                if "selected" in row.keys():
-                    row["selected"] = int(row["selected"])
+        temp_data = [
+            {k: v for k, v in row.items()}
+            for row in self.jpg_data]
+        for row in temp_data:
+            if "datetime" in row.keys():
+                row["datetime"] = dt.strftime(
+                    row["datetime"], "%Y-%m-%d %H:%M:%S")
+            if "timedelta" in row.keys():
+                row["timedelta"] = row["timedelta"].total_seconds()
+            if "selected" in row.keys():
+                row["selected"] = int(row["selected"])
 
-            with open(filename, "w") as f:
-                f.write(json.dumps(self.plt_vals) + "\n")
-                f.write(json.dumps(temp_data) + "\n")
-                f.write(json.dumps(self.user_edits))
-            self.update_recent_folder(filename)
-        else:
-            print("NO SAVE FILEPATH SPECIFIED!")
+        with open(filename, "w") as f:
+            f.write(json.dumps(self.plt_vals) + "\n")
+            f.write(json.dumps(temp_data) + "\n")
+            f.write(json.dumps(self.user_edits))
 
-    def load(self, path=False):
+    def load(self, filename):
         """Loads a .sav file, the Cam() object is now identical to the last.
         """
 
-        if path:
-            filename = path
-        else:
-            filename = handle_tkinter("openfile", self.recent_folder)
-        self.update_recent_folder(filename)
-        if filename:
-            with open(filename, "r") as f:
-                self.plt_vals = json.loads(next(f))
-                self.plt_vals["resp_thresh"] = (
-                    self.plt_vals["resp_thresh"] ** (1 / RESP_NUM))
-                temp_data = json.loads(next(f))
-                temp_dict = json.loads(next(f))
+        with open(filename, "r") as f:
+            self.plt_vals = json.loads(next(f))
+            self.plt_vals["resp_thresh"] = (
+                self.plt_vals["resp_thresh"] ** (1 / RESP_NUM))
+            temp_data = json.loads(next(f))
+            temp_dict = json.loads(next(f))
 
-            for row in temp_data:
-                if "datetime" in row.keys():
-                    row["datetime"] = dt.strptime(
-                        row["datetime"], "%Y-%m-%d %H:%M:%S"
-                    )
-                    self.dt_present = True
-                else:
-                    self.dt_present = False
-                if "timedelta" in row.keys():
-                    try:
-                        row["timedelta"] = td(seconds=row["timedelta"])
-                    except AttributeError:
-                        pass
-                if "selected" in row.keys():
-                    row["selected"] = bool(row["selected"])
-            self.jpg_data = temp_data.copy()
-            self.length = len(self.jpg_data)
+        for row in temp_data:
+            if "datetime" in row.keys():
+                row["datetime"] = dt.strptime(
+                    row["datetime"], "%Y-%m-%d %H:%M:%S"
+                )
+                self.dt_present = True
+            else:
+                self.dt_present = False
+            if "timedelta" in row.keys():
+                try:
+                    row["timedelta"] = td(seconds=row["timedelta"])
+                except AttributeError:
+                    pass
+            if "selected" in row.keys():
+                row["selected"] = bool(row["selected"])
+        self.jpg_data = temp_data.copy()
+        self.length = len(self.jpg_data)
 
-            self.user_edits = {int(k): v for k, v in temp_dict.items()}
-        else:
-            print("NO LOAD FILEPATH SPECIFIED!")
+        self.user_edits = {int(k): v for k, v in temp_dict.items()}
 
-    def export(self, path=False):
+    def export(self, directory):
         """Exports selected images and a .csv file to specified directory.
         """
 
-        if path:
-            directory = path
-        else:
-            directory = handle_tkinter("opendir", self.recent_folder)
-        self.update_recent_folder(directory)
-        if directory:
-            write_data = []
+        write_data = []
 
-            for i, row in enumerate(self.jpg_data):
-                write_row = row.copy()
-                if row["selected"]:
-                    if self.dt_present:
-                        dt_ISO = dt.strftime(
-                            row["datetime"], "%Y%m%dT%H%M%S"
-                        )
+        for i, row in enumerate(self.jpg_data):
+            write_row = row.copy()
+            if row["selected"]:
+                if self.dt_present:
+                    dt_ISO = dt.strftime(
+                        row["datetime"], "%Y%m%dT%H%M%S"
+                    )
+                else:
+                    dt_ISO = str(i)
+                new_name = "_".join((dt_ISO, row["filename"]))
+                new_path = os.path.join(directory, new_name)
+
+                write_row["filename"] = new_name
+                write_row["filepath"] = new_path
+                write_row["old_name"] = row["filename"]
+                write_row["old_path"] = row["filepath"]
+
+                shutil.copy2(row["filepath"], new_path)
+                write_data.append(write_row)
+        if write_data:
+            with open(os.path.join(directory, "_export.csv"), "w") as f:
+                variables = sorted(write_data[0].keys(),
+                                   key=sort_cols)
+                for i, row in enumerate(write_data):
+                    if i != 0:
+                        f.write("\n")
                     else:
-                        dt_ISO = str(i)
-                    new_name = "_".join((dt_ISO, row["filename"]))
-                    new_path = os.path.join(directory, new_name)
-
-                    write_row["filename"] = new_name
-                    write_row["filepath"] = new_path
-                    write_row["old_name"] = row["filename"]
-                    write_row["old_path"] = row["filepath"]
-
-                    shutil.copy2(row["filepath"], new_path)
-                    write_data.append(write_row)
-            if write_data:
-                with open(os.path.join(directory, "_export.csv"), "w") as f:
-                    variables = sorted(write_data[0].keys(),
-                                       key=sort_cols)
-                    for i, row in enumerate(write_data):
-                        if i != 0:
-                            f.write("\n")
-                        else:
-                            f.write(",".join(variables) + "\n")
-                        f.write(",".join(csv_safe(row[v]) for v in variables))
-            else:
-                print("NO IMAGES SELECTED FOR EXPORT!")
+                        f.write(",".join(variables) + "\n")
+                    f.write(",".join(csv_safe(row[v]) for v in variables))
         else:
-            print("NO EXPORT DIRECTORY SPECIFIED!")
+            raise ValueError("No images selected for export.")
 
     def attach_diffs(self, var, new_var):
         """Finds the difference between the current and previous variable.
@@ -1315,8 +1233,10 @@ class Cam():
 
 
 if __name__ == "__main__" and 1:
-    print("→ Please navigate to folder with camera-trapping images.")
-    jpg_paths = find_imgs()
+    homedir = sys.path[-1]
+
+    print("→ Please input a directory path with camera-trapping images.")
+    jpg_paths = find_imgs(input_directory())
 
     jpg_data = attach_exif(jpg_paths)
     jpg_data.sort(key=lambda x: x["datetime"])
@@ -1332,15 +1252,15 @@ if __name__ == "__main__" and 1:
     if type(processed_data) is not tuple:
         cam = Cam(processed_data)
 
-        print("→ Please choose a location for an initial save.")
-        cam.save()
+        print("→ Please input a file path for an initial save.")
+        cam.save(input_filename())
 
         print("→ Use the interactive plot to select images for export.")
         help(Cam.plot)
         cam.plot()
 
         print("→ Save once again, so changes are recorded.")
-        cam.save()
+        cam.save(input_filename())
 
         print("→ Finally, choose a location for export.")
-        cam.export()
+        cam.export(input_directory())
