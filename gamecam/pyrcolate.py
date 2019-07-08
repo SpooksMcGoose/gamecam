@@ -91,7 +91,8 @@ def input_filename():
         filename = input("> ")
         try:
             with open(filename, 'w') as _:
-                return filename
+                pass
+            return filename
         except OSError:
             print("File already exists or is invalid, try again.")
 
@@ -819,8 +820,7 @@ class Cam():
             h, w, *_ = cv2.imread(jpg_data[0]["filepath"]).shape
 
             self.plt_vals["ceiling"] = h * w * 0.02
-            self.plt_vals["resp_thresh"] = (
-                (self.plt_vals["ceiling"] / 2) ** (1 / RESP_NUM))
+            self.plt_vals["resp_thresh"] = self.plt_vals["ceiling"] / 2
 
             self.attach_diffs("median", "med_diff")
 
@@ -1061,8 +1061,9 @@ class Cam():
         except AttributeError as inst:
             raise inst
 
+        mod = self.plt_vals["resp_thresh"] ** (1 / RESP_NUM)
         SLIDER_PARAMS = [
-            ("RESP", 0.08, 0, 100, self.plt_vals["resp_thresh"], "%.2e"),
+            ("RESP", 0.08, 0, 100, mod, "%.2e"),
             ("TRANS", 0.06, 0, 120, self.plt_vals["trans_thresh"], "%.1f"),
             ("SMOOTH", 0.04, 0, 10, self.plt_vals["smooth_time"], "%.1f"),
             ("NIGHT", 0.02, -1, 50, self.plt_vals["night_mult"], "%.1f")
