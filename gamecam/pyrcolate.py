@@ -435,6 +435,7 @@ def crop_clone_preview(image):
     gs = gridspec.GridSpec(2, 2, height_ratios=[1, 1.25])
 
     fig = plt.figure()
+    fig.canvas.set_window_title("Crop and Clone Preview")
     ax_crop = fig.add_subplot(gs[0, 0])
     ax_clone = fig.add_subplot(gs[0, 1])
     ax_mod = fig.add_subplot(gs[1, :])
@@ -904,6 +905,9 @@ class Cam():
     def export(self, directory):
         """Exports selected images and a .csv file to specified directory.
         """
+
+        if not os.path.exists(directory):
+            os.makedirs(directory)
 
         write_data = []
 
