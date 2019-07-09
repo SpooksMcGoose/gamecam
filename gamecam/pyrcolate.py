@@ -103,7 +103,12 @@ def input_directory():
         if os.path.isdir(directory):
             return directory
         else:
-            print("Invalid directory path, try again.")
+            print("Directory does not exist, would you like to make it?")
+            answer = input("y/n > ")
+            if answer.lower() in ("y", "yes"):
+                os.makedirs(directory)
+                return directory
+            print("Please input new directory path.")
 
 
 def csv_safe(obj):
