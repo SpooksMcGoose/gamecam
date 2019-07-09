@@ -88,27 +88,28 @@ def sort_cols(var_name):
 
 def input_filename():
     while True:
-        filename = input("> ")
-        try:
-            with open(filename, 'w') as _:
-                pass
+        filename = input("FILEPATH > ")
+        if os.path.exists(filename):
+            print("File already exists, would you like to overwrite it?")
+            answer = input("Y / N > ")
+            if answer.lower() in ("y", "yes"):
+                return filename
+        else:
             return filename
-        except OSError:
-            print("File already exists or is invalid, try again.")
 
 
 def input_directory():
     while True:
-        directory = input("> ")
+        directory = input("DIRPATH > ")
         if os.path.isdir(directory):
             return directory
         else:
             print("Directory does not exist, would you like to make it?")
-            answer = input("y/n > ")
+            answer = input("Y / N > ")
             if answer.lower() in ("y", "yes"):
                 os.makedirs(directory)
                 return directory
-            print("Please input new directory path.")
+            print("Please input a new directory path.")
 
 
 def csv_safe(obj):
