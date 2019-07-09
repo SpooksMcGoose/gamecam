@@ -425,6 +425,8 @@ def crop_clone_preview(image):
         mod = cv2.cvtColor(mod, cv2.COLOR_BGR2RGB)
         ax_mod.imshow(mod)
 
+        fig.canvas.draw_idle()
+
     rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     H, W, *_ = image.shape
