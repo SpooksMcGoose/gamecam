@@ -66,7 +66,7 @@ COL_ORDER = [
 ]
 
 RS_PARAMS = {
-    "drawtype": 'box', "useblit": True, "button": [1, 3], "minspanx": 5,
+    "drawtype": "box", "useblit": True, "button": [1, 3], "minspanx": 5,
     "minspany": 5, "spancoords": "pixels", "interactive": True
 }
 
@@ -354,7 +354,7 @@ def crop_clone_preview(image):
         Format is (crop, clone_to, clone_directs). The crop_tuple
         variable can be fed directly into process_jpgs(). Then, use
         "generate_clone_tuples(clone_to, directs[0])" to get the clone
-        parameter, or any other direction in the directs list (they've all
+        parameter, or any other direction in the directs list (all have
         been checked for bounds, unlike generate_clone_tuples).
     """
 
@@ -467,7 +467,7 @@ def crop_clone_preview(image):
     ax_clone.imshow(rgb)
     ax_mod.imshow(rgb)
 
-    plt.connect('draw_event', update)
+    plt.connect("draw_event", update)
     plt.show()
 
     return mem.crop_tuple, mem.clone_tuple, mem.clone_directs
@@ -723,7 +723,7 @@ def construct_jpg_data(
     Returns
     -------
     list of dictionaries
-        Each row contains everything that"s needed to feed a Cam() object
+        Each row contains everything that is needed to feed a Cam() object
         with its initial data.
     """
 
