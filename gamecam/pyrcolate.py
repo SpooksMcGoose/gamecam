@@ -94,7 +94,7 @@ def input_filename():
             answer = input("Y / N > ")
             if answer.lower() in ("y", "yes"):
                 return filename
-        else:
+        elif filename:
             return filename
 
 
@@ -1007,6 +1007,8 @@ class Cam():
         on time since last image (SMOOTH slider value).
         """
 
+        self.pano_i = 0
+
         prev = self.jpg_data[0]
         for i, curr in enumerate(self.jpg_data):
             prev["selected"] = (
@@ -1123,40 +1125,43 @@ class Cam():
         # Displays last two and next two images from response spike.
         def image_pano(xdata):
             i = int(round(xdata))
-            array = np.array(range(i - 2, i + 2))
-            while True:
-                if any(n < 0 for n in array):
-                    array += 1
-                elif any(n >= self.length for n in array):
-                    array -= 1
-                else:
-                    break
+            if i != self.pano_i:
+                self.pano_i = i
+                array = np.array(range(i - 2, i + 2))
+                while True:
+                    if any(n < 0 for n in array):
+                        array += 1
+                    elif any(n >= self.length for n in array):
+                        array -= 1
+                    else:
+                        break
 
-            stack = []
-            for n in array:
-                if n in self.buffer[0]:
-                    ind = self.buffer[0].index(n)
-                    img = self.buffer[1][ind]
-                    self.buffer[0].append(self.buffer[0].pop(ind))
-                    self.buffer[1].append(self.buffer[1].pop(ind))
-                else:
-                    img = cv2.imread(self.jpg_data[n]["filepath"])
-                    self.buffer[0] = self.buffer[0][1:] + [n]
-                    self.buffer[1] = self.buffer[1][1:] + [img]
+                stack = []
+                for n in array:
+                    if n in self.buffer[0]:
+                        ind = self.buffer[0].index(n)
+                        img = self.buffer[1][ind]
+                        self.buffer[0].append(self.buffer[0].pop(ind))
+                        self.buffer[1].append(self.buffer[1].pop(ind))
+                    else:
+                        img = cv2.imread(self.jpg_data[n]["filepath"])
+                        self.buffer[0] = self.buffer[0][1:] + [n]
+                        self.buffer[1] = self.buffer[1][1:] + [img]
 
-                if self.toggle:
-                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    img = cv2.cv2.equalizeHist(gray)
+                    if self.toggle:
+                        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                        img = cv2.cv2.equalizeHist(gray)
 
-                stack.append(img)
+                    stack.append(img)
 
-            min_y = min(img.shape[0] for img in stack)
+                min_y = min(img.shape[0] for img in stack)
 
-            pano = np.hstack([img[:min_y, :] for img in stack])
-            h, w, *_ = pano.shape
+                pano = np.hstack([img[:min_y, :] for img in stack])
+                h, w, *_ = pano.shape
 
-            cv2.namedWindow("Gallery", cv2.WINDOW_NORMAL)
-            cv2.imshow("Gallery", cv2.resize(pano, (w // 2, h // 2)))
+                cv2.namedWindow("Gallery", cv2.WINDOW_NORMAL)
+                cv2.imshow("Gallery", cv2.resize(pano, (w // 2, h // 2)))
+                cv2.waitKey(1)
 
         def on_click(event):
             if event.dblclick and event.xdata is not None:
