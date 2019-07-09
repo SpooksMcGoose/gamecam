@@ -2,6 +2,7 @@ __pycache__
 build
 dist
 test.py
+build_instructs.txt
 .DS_Store
 .Rhistory
 *.egg-info
