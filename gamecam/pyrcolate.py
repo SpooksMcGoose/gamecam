@@ -1275,7 +1275,7 @@ class Cam():
         cv2.destroyAllWindows()
 
 
-if __name__ == "__main__" and 1:
+if __name__ == "__main__":
     homedir = sys.path[-1]
 
     print("→ Please input a directory path with camera-trapping images.")
