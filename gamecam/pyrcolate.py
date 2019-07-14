@@ -81,6 +81,10 @@ class Mem():
         pass
 
 
+def rint(n):
+    return round(int(n))
+
+
 def sort_cols(var_name):
     if var_name in COL_ORDER:
         return COL_ORDER.index(var_name)
@@ -166,7 +170,27 @@ def strfdelta(tdelta, fmt):
     return fmt.format(**d)
 
 
-# SPECIFIC FUNCTIONS (ALL BELOW)
+def resize_long_edge(im, size):
+    h, w, *_ = im.shape
+    if w > h:
+        scale = size / w
+    else:
+        scale = size / h
+
+    new_w = rint(w * scale)
+    new_h = rint(h * scale)
+
+    return cv2.resize(im, (new_w, new_h))
+
+
+def resize_with_exif(from_path, to_path, long_edge=512):
+    im = cv2.imread(from_path)
+    resized = resize_long_edge(im, long_edge)
+    cv2.imwrite(to_path, resized)
+    piexif.transplant(from_path, to_path)
+
+
+# SPECIFIC FUNCTIONS
 
 
 def find_imgs(dirpath, img_type=(".jpg", ".jpeg")):
