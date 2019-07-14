@@ -2,11 +2,12 @@ import json
 import operator
 import os
 import shutil
+import string
 import sys
 import time
 
 import cv2
-import exifread as er
+import piexif
 import numpy as np
 
 from sklearn.cluster import KMeans
@@ -29,7 +30,8 @@ def PARSE_DT(raw):
     """Default parser for EXIF "Image DateTime" tag.
     """
 
-    return dt.strptime(str(raw), "%Y:%m:%d %H:%M:%S")
+    str_ = ''.join(x for x in str(raw) if x in string.digits)
+    return dt.strptime(str_, "%Y%m%d%H%M%S")
 
 
 def SORT_BY_DT(row):
@@ -40,7 +42,7 @@ def SORT_BY_DT(row):
 
 
 DEFAULT_PARSE = [
-    ("Image DateTime", "datetime", PARSE_DT)
+    (("0th", 306), "datetime", PARSE_DT)
 ]
 
 DEFAULT_PLOT_PARAMS = {
@@ -226,11 +228,10 @@ def attach_exif(jpg_data, parse_tags=DEFAULT_PARSE):
 
     for deep_row in jpg_data:
         row = deep_row.copy()
-        file = open(row["filepath"], "rb")
-        tags = er.process_file(file, details=False)
+        tags = piexif.load(row["filepath"])
 
-        for t, var, anon in parse_tags:
-            row[var] = anon(tags[t])
+        for (key, tag), var, anon in parse_tags:
+            row[var] = anon(tags[key][tag])
 
         output.append(row)
 

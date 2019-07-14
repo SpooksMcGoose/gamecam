@@ -22,6 +22,6 @@ setuptools.setup(
         ("", ["LICENSE.txt"])
     ],
     install_requires=[
-        "opencv-python", "ExifRead", "numpy", "matplotlib", "scikit-learn"
+        "opencv-python", "piexif", "numpy", "matplotlib", "scikit-learn"
     ]
 )
