@@ -145,6 +145,15 @@ def extract_var(data, var):
     return [x[var] for x in data]
 
 
+def stop_watch(i, timer):
+    progress = (i * 10) // timer[0]
+    elapsed = time.time() - timer[1]
+    total = elapsed / (progress / 100)
+    remain = strfdelta(td(seconds=total - elapsed),
+                        "{days}:{hours}:{minutes}:{seconds}")
+    print(f"{progress}% done. {remain} left.")
+
+
 def strfdelta(tdelta, fmt):
     """Formats a timedelta object as a string.
 
@@ -183,11 +192,36 @@ def resize_long_edge(im, size):
     return cv2.resize(im, (new_w, new_h))
 
 
-def resize_with_exif(from_path, to_path, long_edge=512):
-    im = cv2.imread(from_path)
-    resized = resize_long_edge(im, long_edge)
-    cv2.imwrite(to_path, resized)
-    piexif.transplant(from_path, to_path)
+def generate_thumbnails(jpg_data, export_dir, long_edge=1024):
+    """Formats a timedelta object as a string.
+
+    Parameters
+    ----------
+    jpg_data : list of dictionaries
+        Requires that "filepath" and "filename" is in dictionary keys, which is
+        easily provided by find_imgs() prior to this function.
+    export_dir : str
+        Directory path that is used for exporting thumbnails.
+    long_edge : int, optional
+        By default, images will be resized to 1024 pixels on the long edge of
+        the image. Smaller sizes speed up performance, but decrease acuity.
+
+    """
+    if not os.path.exists(export_dir):
+        os.makedirs(export_dir)
+
+    timer = (len(jpg_data) // 10, time.time())
+    for i, jpg in enumerate(jpg_data):
+        if not i % timer[0] and i:
+            stop_watch(i, timer)
+
+        from_path = jpg["filepath"]
+        to_path = os.path.join(export_dir, jpg["filename"])
+
+        im = cv2.imread(from_path)
+        resized = resize_long_edge(im, long_edge)
+        cv2.imwrite(to_path, resized)
+        piexif.transplant(from_path, to_path)
 
 
 # SPECIFIC FUNCTIONS
@@ -684,12 +718,7 @@ def process_jpgs(
                 crop = (0, h, 0, w)
             prev = preprocess(jpg, crop, clone)
         elif i % timer[0] == 0:
-            progress = i * 10 // timer[0]
-            elapsed = time.time() - timer[1]
-            total = elapsed / (progress / 100)
-            remain = strfdelta(td(seconds=total - elapsed),
-                               "{days}:{hours}:{minutes}:{seconds}")
-            print(f"{progress}% done. {remain} left.")
+            stop_watch(i, timer)
 
         jpg = cv2.imread(row["filepath"], 0)
         curr = preprocess(jpg, crop, clone)
@@ -812,7 +841,7 @@ class Cam():
         Updates jpg_data attribute with new events.
     """
 
-    def __init__(self, jpg_data=False, resp_var="count"):
+    def __init__(self, jpg_data=False, resp_var="count", thumb_dir=None):
         """
         Parameters
         ----------
@@ -823,6 +852,10 @@ class Cam():
             A key found in jpg_data, typically the "count" variable is used
             as a response, but alternatives like "median" can be used to plot
             jpgs without processing them first.
+        thumb_dir : str, optional
+            If the interactive plot is laggy, use resize_with_exif() on your
+            jpg_data list, and specify the export directory here. These smaller
+            images will be displayed in the Gallery tab.
         """
 
         self.resp_var = resp_var
@@ -848,10 +881,7 @@ class Cam():
 
             self.dt_present = "datetime" in self.jpg_data[0].keys()
 
-            for row in self.jpg_data:
-                row["count"] = row[self.resp_var]
-
-            h, w, *_ = cv2.imread(jpg_data[0]["filepath"]).shape
+            h, w = jpg_data[0]["shape"]
 
             self.plt_vals["ceiling"] = h * w * 0.02
             self.plt_vals["resp_thresh"] = self.plt_vals["ceiling"] / 2
@@ -859,6 +889,11 @@ class Cam():
             self.attach_diffs("median", "med_diff")
 
             for row in self.jpg_data:
+                if thumb_dir is not None:
+                    row["thumbpath"] = os.path.join(thumb_dir, row["filename"])
+                else:
+                    row["thumbpath"] = row["filepath"]
+                row["count"] = row[self.resp_var]
                 row["med_diff"] = abs(row["med_diff"])
                 row["selected"] = False
                 row["user_edit"] = False
@@ -1169,7 +1204,7 @@ class Cam():
                         self.buffer[0].append(self.buffer[0].pop(ind))
                         self.buffer[1].append(self.buffer[1].pop(ind))
                     else:
-                        img = cv2.imread(self.jpg_data[n]["filepath"])
+                        img = cv2.imread(self.jpg_data[n]["thumbpath"])
                         self.buffer[0] = self.buffer[0][1:] + [n]
                         self.buffer[1] = self.buffer[1][1:] + [img]
 
@@ -1276,8 +1311,6 @@ class Cam():
 
 
 if __name__ == "__main__":
-    homedir = sys.path[-1]
-
     print("→ Please input a directory path with camera-trapping images.")
     jpg_paths = find_imgs(input_directory())
 

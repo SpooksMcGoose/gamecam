@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setuptools.setup(
     name="gamecam-sdrabing",
-    version="0.8.2",
+    version="0.8.3",
     author="Shane Drabing",
     author_email="shane.drabing@gmail.com",
     packages=setuptools.find_packages(),
